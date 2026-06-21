@@ -1,7 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- LocalDeadLetterStore menulis ke Postgres via DbContext ambient. EF Core (core)
+         cukup — Set<T>+SaveChanges, tanpa relational mapping di sini. Nol cloud SDK. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
 
   <PropertyGroup>

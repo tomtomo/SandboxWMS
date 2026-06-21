@@ -1,7 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Mechanism Outbox/Inbox: EF Core (entity + ModelBuilder ext) provider-agnostic;
+         .Relational menyediakan ToTable/schema mapping (UseNpgsql dipilih di modul/host).
+         Hosting.Abstractions untuk BackgroundService. Bukan SDK cloud → FF#1 aman. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
   </ItemGroup>
 
   <PropertyGroup>
