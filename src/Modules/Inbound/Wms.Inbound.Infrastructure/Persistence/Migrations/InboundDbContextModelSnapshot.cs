@@ -156,6 +156,71 @@ namespace Wms.Inbound.Infrastructure.Persistence.Migrations
 
                     b.ToTable("outbox", "infrastructure");
                 });
+
+            modelBuilder.Entity("Wms.Inbound.Domain.GoodsReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("WarehouseId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_goods_receipts");
+
+                    b.ToTable("goods_receipts", "inbound");
+                });
+
+            modelBuilder.Entity("Wms.Inbound.Domain.GoodsReceipt", b =>
+                {
+                    b.OwnsMany("Wms.Inbound.Domain.GoodsReceiptLine", "Lines", b1 =>
+                        {
+                            b1.Property<int>("id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer")
+                                .HasColumnName("quantity");
+
+                            b1.Property<string>("Sku")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("sku");
+
+                            b1.Property<Guid>("goods_receipt_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("goods_receipt_id");
+
+                            b1.HasKey("id")
+                                .HasName("pk_gr_lines");
+
+                            b1.HasIndex("goods_receipt_id")
+                                .HasDatabaseName("ix_gr_lines_goods_receipt_id");
+
+                            b1.ToTable("gr_lines", "inbound");
+
+                            b1.WithOwner()
+                                .HasForeignKey("goods_receipt_id")
+                                .HasConstraintName("fk_gr_lines_goods_receipts_goods_receipt_id");
+                        });
+
+                    b.Navigation("Lines");
+                });
 #pragma warning restore 612, 618
         }
     }

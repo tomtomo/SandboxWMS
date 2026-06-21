@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Platform.Local.Messaging;
+using Wms.TestSupport;
 
 namespace Wms.Inbound.IntegrationTests;
 

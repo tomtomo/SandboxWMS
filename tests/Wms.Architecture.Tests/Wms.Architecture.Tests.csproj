@@ -30,6 +30,9 @@
     <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Infrastructure\Wms.Inbound.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Api\Wms.Inbound.Api.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Domain\Wms.Inventory.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Application\Wms.Inventory.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Infrastructure\Wms.Inventory.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

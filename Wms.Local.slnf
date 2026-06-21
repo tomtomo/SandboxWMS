@@ -14,10 +14,18 @@
       "src\\Modules\\Inbound\\Wms.Inbound.Infrastructure\\Wms.Inbound.Infrastructure.csproj",
       "src\\Modules\\Inbound\\Wms.Inbound.Api\\Wms.Inbound.Api.csproj",
       "src\\Modules\\Inbound\\Wms.Inbound.Contracts\\Wms.Inbound.Contracts.csproj",
+      "src\\Modules\\Inventory\\Wms.Inventory.Domain\\Wms.Inventory.Domain.csproj",
+      "src\\Modules\\Inventory\\Wms.Inventory.Application\\Wms.Inventory.Application.csproj",
+      "src\\Modules\\Inventory\\Wms.Inventory.Infrastructure\\Wms.Inventory.Infrastructure.csproj",
       "src\\Hosts\\Local\\Wms.Inbound.Host.Local\\Wms.Inbound.Host.Local.csproj",
+      "src\\Hosts\\Local\\Wms.Inventory.Host.Local\\Wms.Inventory.Host.Local.csproj",
       "src\\Tools\\Wms.MigrationRunner\\Wms.MigrationRunner.csproj",
+      "tests\\Wms.TestSupport\\Wms.TestSupport.csproj",
       "tests\\Wms.Architecture.Tests\\Wms.Architecture.Tests.csproj",
-      "tests\\Wms.Inbound.IntegrationTests\\Wms.Inbound.IntegrationTests.csproj"
+      "tests\\Wms.Inbound.Domain.UnitTests\\Wms.Inbound.Domain.UnitTests.csproj",
+      "tests\\Wms.Inbound.IntegrationTests\\Wms.Inbound.IntegrationTests.csproj",
+      "tests\\Wms.Inventory.Domain.UnitTests\\Wms.Inventory.Domain.UnitTests.csproj",
+      "tests\\Wms.Inventory.IntegrationTests\\Wms.Inventory.IntegrationTests.csproj"
     ]
   }
 }

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- E2E walking skeleton: producer (Inbound) + consumer (Inventory) + rail Local -->
+    <ProjectReference Include="..\Wms.TestSupport\Wms.TestSupport.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Infrastructure\Wms.Inbound.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Application\Wms.Inbound.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Infrastructure\Wms.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Domain\Wms.Inventory.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Platform\Wms.Platform.Local\Wms.Platform.Local.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

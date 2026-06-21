@@ -5,6 +5,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wms.Inbound.Infrastructure.DependencyInjection;
 using Wms.Inbound.Infrastructure.Persistence;
+using Wms.Inventory.Infrastructure.DependencyInjection;
+using Wms.Inventory.Infrastructure.Persistence;
 
 // What: MigrationRunner — env-neutral migration applier (ADR-0010 amendment)
 // Why: menutup lubang operasional "N migration assembly diterapkan bagaimana" pada
@@ -20,9 +22,16 @@ var inboundConnection = builder.Configuration.GetConnectionString("inbounddb")
 
 builder.Services.AddInboundInfrastructure(inboundConnection);
 
+var inventoryConnection = builder.Configuration.GetConnectionString("inventorydb")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:inventorydb tidak diset (appsettings.json / env / --ConnectionStrings:inventorydb=...).");
+
+builder.Services.AddInventoryInfrastructure(inventoryConnection);
+
 using var host = builder.Build();
 
 await ApplyMigrationsAsync<InboundDbContext>(host, "Inbound");
+await ApplyMigrationsAsync<InventoryDbContext>(host, "Inventory");
 
 return 0;
 

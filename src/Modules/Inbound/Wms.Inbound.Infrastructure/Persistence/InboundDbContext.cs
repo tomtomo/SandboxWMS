@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
+using Wms.Inbound.Domain;
 
 namespace Wms.Inbound.Infrastructure.Persistence;
 
@@ -14,10 +15,14 @@ public sealed class InboundDbContext(DbContextOptions<InboundDbContext> options)
 {
     public const string Schema = "inbound";
 
+    // What: DbSet aggregate root GoodsReceipt (write-model modul Inbound)
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.AddInfrastructureTables();
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(InboundDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }
 }

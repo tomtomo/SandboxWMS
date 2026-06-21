@@ -1,4 +1,5 @@
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
+using Wms.Inbound.Api;
 using Wms.Inbound.Infrastructure.DependencyInjection;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
@@ -21,6 +22,7 @@ builder.Services.AddOutboxDispatcher();
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
-app.MapGet("/", () => "Wms.Inbound.Host.Local — Phase 01b (Outbox/Inbox rail wired)");
+app.MapGet("/", () => "Wms.Inbound.Host.Local — Phase 01c (GoodsReceipt slice + Outbox)");
+app.MapInboundEndpoints();
 
 app.Run();
