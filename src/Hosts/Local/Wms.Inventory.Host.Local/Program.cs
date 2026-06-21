@@ -1,4 +1,6 @@
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
+using Wms.BuildingBlocks.Infrastructure.Messaging;
+using Wms.Inventory.Application.Features.ConsumeGoodsReceiptConfirmed;
 using Wms.Inventory.Infrastructure.DependencyInjection;
 using Wms.Inventory.Infrastructure.Messaging;
 using Wms.Platform.Hosting;
@@ -18,6 +20,7 @@ var inventoryConnection = builder.Configuration.GetConnectionString("inventorydb
 builder.Services.AddInventoryInfrastructure(inventoryConnection);
 builder.Services.AddLocalMessaging();
 builder.Services.AddOutboxDispatcher();
+builder.Services.AddConsumerDeadLettering();
 
 var app = builder.Build();
 
@@ -26,9 +29,12 @@ var app = builder.Build();
 // proses-nya sendiri; cross-process delivery menyusul via adapter broker (Phase 05/06).
 // Choreography E2E dibuktikan via integration test 1-proses. Di cloud, adapter broker yang
 // memanggil dispatcher.HandleAsync per pesan — kontraknya sama.
+// How: dispatcher dibungkus ConsumerDeadLetterPipeline (retry → DLQ, Phase 02b) sebelum
+// di-subscribe — gagal handle berulang → poison ke tabel dead_letter, bukan hilang diam-diam.
 var publisher = app.Services.GetRequiredService<InMemoryMessagePublisher>();
 var dispatcher = app.Services.GetRequiredService<InventoryIntegrationEventDispatcher>();
-publisher.Subscribe(dispatcher.HandleAsync);
+var deadLettering = app.Services.GetRequiredService<ConsumerDeadLetterPipeline>();
+publisher.Subscribe(deadLettering.Wrap(GoodsReceiptConfirmedConsumer.HandlerType, dispatcher.HandleAsync));
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => "Wms.Inventory.Host.Local — Phase 01c (GRConfirmed consumer + Inbox)");

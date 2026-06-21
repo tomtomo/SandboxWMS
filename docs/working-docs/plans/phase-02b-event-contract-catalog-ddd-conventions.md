@@ -1,6 +1,6 @@
 # Phase 02b — Event-Contract Catalog (AsyncAPI) + Tactical DDD Conventions
 
-**Status:** planned
+**Status:** done (2026-06-21)
 
 **Pre-conditions:**
 - **02a done:** pipeline behavior baseline (`Logging→Authorization→Validation→Transaction→Handler`) + `Result`→transport mapping + FF #7 hijau; slice 01c sudah return `Result`.
@@ -45,3 +45,32 @@
 **Touchpoint cert:** **No cert touchpoint** (architecture governance — AsyncAPI, fitness function, tactical DDD; bukan objektif AZ-204 maupun PCD).
 
 > Note: `asyncapi.yaml` adalah artefak **Kelas A** otoritatif (`docs/architecture/`), legitim dibuat di phase ini.
+
+---
+
+## Catatan penyelesaian (2026-06-21)
+
+**DoD terverifikasi:** `dotnet build Wms.sln` 0-warning; **48 test hijau** (FF#11 + behavioral emission + retry→DLQ integration semuanya pass). Docker tersedia → integration test riil (Testcontainers Postgres).
+
+**Sudah ada sebelum phase ini (tak diduplikasi):**
+- **Task 4** (behavioral aggregate-emission) — `tests/Wms.Inbound.Domain.UnitTests/GoodsReceiptTests.cs` sudah punya `Confirm_raises_GoodsReceiptConfirmed_carrying_lines` + `Confirm_twice_fails_and_raises_no_second_event` (ditulis di 01c). Diverifikasi hijau.
+- **Task 2** (logical-name binding) — `GRConfirmedV1.LogicalName` const sudah ada sejak 02a. Di phase ini hanya **diformalkan keputusannya** (const, bukan attribute) + dokumentasi pola yang dibaca FF#11.
+
+**Dibangun di phase ini:**
+- `docs/architecture/asyncapi.yaml` (AsyncAPI 3.0): channel `inbound.gr_confirmed.v1` penuh + 4 placeholder (`outbound.wave_released.v1`/`inventory.stock_allocated.v1`/`outbound.shipment_dispatched.v1`/`outbound.picking_completed.v1`); matriks emitter→receiver→trigger + kolom emitted-but-unconsumed (StockLow/StockNearExpiry = gap eksplisit, tanpa channel).
+- **FF #11** `Ff11_published_contracts_have_declared_channel` di `Wms.Architecture.Tests` — parse YAML (YamlDotNet) + reflect `*.Contracts` (marker `const string LogicalName`); directional, sanity-guard anti-vacuous. Total FF 7→8.
+- **Retry→DLQ baseline consumer**: `ConsumerDeadLetterPipeline` + `ConsumerRetryOptions` (BuildingBlocks.Infrastructure) — Decorator reusable (in-line retry → `IDeadLetterStore`); DI `AddConsumerDeadLettering()`; di-wire di `Wms.Inventory.Host.Local` membungkus dispatcher. Integration test `ConsumerRetryDeadLetterTests` (poison + control).
+
+**Keputusan sadar (auditable):**
+1. **Binding = `const`, bukan attribute** — `*.Contracts` wajib zero-dep (blueprint §4 / ADR-0009); attribute butuh shared-kernel (langgar) atau duplikasi. FF#11 discover by-convention.
+2. **YamlDotNet 18.0.0** (MIT, test-only, di CPM) dipakai FF#11 — parser .NET, BUKAN AsyncAPI CLI Node yang ditolak ADR-0023; bukan SDK cloud (FF#1 aman).
+3. **Retry manual loop, BUKAN Polly** — konsisten `OutboxDispatcher`; kalibrasi Polly (split-timeout/circuit-breaker) tetap di-defer ke Phase 07c.
+
+**Utang/anti-overengineering sadar:**
+- Placeholder channel payload = **provisional** (dari overview/ADR), diratifikasi saat tipe `*.Contracts`-nya lahir (Phase 03). FF#11 cuma butuh `address` placeholder ada (forward-declaration), payload tak dijaga.
+- Reverse-coverage (tiap channel punya emitter) = known gap (ADR-0023); placeholder sengaja tanpa tipe.
+- AsyncAPI CLI validate sebagai CI gate = ditolak (ADR-0023); kebenaran struktural diverifikasi terhadap spec 3.0 saat penulisan, dijaga FF#11 untuk drift identity.
+
+**Git:** semua UNCOMMITTED — Tom yang commit (Rule 2). Saran message: `feat/02b-event-contract-catalog-ddd-conventions`.
+
+**Next:** **Phase 02c** — `audit-system-actor-observability-baseline` (SYSTEM actor + audit out-of-band + correlation-id + OTel baseline). Depends-on 02b ✓.

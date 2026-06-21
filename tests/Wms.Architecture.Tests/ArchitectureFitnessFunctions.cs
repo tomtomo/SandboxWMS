@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using NetArchTest.Rules;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace Wms.Architecture.Tests;
 
@@ -240,5 +242,96 @@ public class ArchitectureFitnessFunctions
     {
         var offenders = result.FailingTypeNames is { } names ? string.Join(", ", names) : "(none)";
         return $"{asm.GetName().Name} {violation}: {offenders}";
+    }
+
+    // FF #11 — contract-coverage: tiap integration event published (`*.Contracts`) WAJIB
+    // punya channel terdeklarasi di docs/architecture/asyncapi.yaml (directional; ADR-0023).
+    // What: contract-coverage fitness function (ADR-0023) — penjaga drift doc <-> kode.
+    // Why: katalog AsyncAPI hanya otoritatif kalau dijaga executable; tanpa FF ini sebuah
+    // contract baru bisa lahir tanpa channel (seam EDA tak terdokumentasi). Directional
+    // only (published ⊆ declared) — reverse-coverage (tiap channel punya contract) =
+    // known gap karena placeholder sengaja belum punya tipe (ADR-0023).
+    // How: BUKAN NetArchTest murni — ia membaca artefak YAML eksternal (di luar kapabilitas
+    // type-dependency NetArchTest), tapi REUSE harness Architecture.Tests. Parse channels
+    // `address` via YamlDotNet → reflect tipe published (marker: `const string LogicalName`)
+    // → assert tiap LogicalName ada di set address.
+    [Fact]
+    public void Ff11_published_contracts_have_declared_channel()
+    {
+        var declared = DeclaredChannelAddresses();
+        Assert.True(declared.Count > 0, "asyncapi.yaml tak punya channel address — katalog kosong/parse gagal.");
+
+        var published = PublishedIntegrationEvents();
+        // sanity: minimal GRConfirmedV1 harus ke-discover — cegah FF lulus secara vacuous
+        // (mis. konvensi marker berubah → reflection nol → assert palsu hijau).
+        Assert.True(published.Count > 0,
+            "tak ada tipe published ter-discover di *.Contracts (cek konvensi `const string LogicalName`).");
+
+        var orphans = published
+            .Where(evt => !declared.Contains(evt.LogicalName))
+            .Select(evt => $"{evt.TypeName} → '{evt.LogicalName}' (tak ada channel di asyncapi.yaml)")
+            .ToList();
+
+        Assert.True(orphans.Count == 0,
+            "contract published tanpa channel terdeklarasi (ADR-0023):"
+            + Environment.NewLine + string.Join(Environment.NewLine, orphans));
+    }
+
+    // assembly `Wms.<Module>.Contracts` untuk modul yang punya layer Contracts (data-driven)
+    private static IEnumerable<Assembly> ContractsAssemblies() =>
+        ModuleLayers
+            .Where(m => m.Value.Contains("Contracts"))
+            .Select(m => Load($"Wms.{m.Key}.Contracts"));
+
+    // tipe published = tipe yang mendeklarasikan `public const string LogicalName` (POLA
+    // binding ADR-0023). Payload bersarang tanpa const (mis. ReceivedLineV1) bukan channel.
+    private static List<(string TypeName, string LogicalName)> PublishedIntegrationEvents()
+    {
+        var events = new List<(string, string)>();
+        foreach (var assembly in ContractsAssemblies())
+        {
+            foreach (var type in assembly.GetTypes().Where(t => t is { IsPublic: true, IsClass: true }))
+            {
+                var field = type.GetField("LogicalName",
+                    BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+                if (field is { IsLiteral: true, IsInitOnly: false } && field.FieldType == typeof(string)
+                    && field.GetRawConstantValue() is string logicalName)
+                {
+                    events.Add((type.FullName ?? type.Name, logicalName));
+                }
+            }
+        }
+        return events;
+    }
+
+    // parse channels.*.address dari asyncapi.yaml (CamelCase: C# Address → yaml `address`;
+    // IgnoreUnmatchedProperties → abaikan info/operations/components/dst).
+    private static HashSet<string> DeclaredChannelAddresses()
+    {
+        var path = Path.Combine(RepoRoot(), "docs", "architecture", "asyncapi.yaml");
+        Assert.True(File.Exists(path), $"asyncapi.yaml tak ditemukan di {path}.");
+
+        var deserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .IgnoreUnmatchedProperties()
+            .Build();
+        var catalog = deserializer.Deserialize<AsyncApiCatalog>(File.ReadAllText(path));
+
+        return catalog?.Channels?.Values
+            .Select(channel => channel.Address)
+            .Where(address => !string.IsNullOrWhiteSpace(address))
+            .Select(address => address!)
+            .ToHashSet() ?? [];
+    }
+
+    // model parse minimal — hanya channels.*.address yang relevan untuk contract-coverage
+    private sealed class AsyncApiCatalog
+    {
+        public Dictionary<string, AsyncApiChannel> Channels { get; set; } = new();
+    }
+
+    private sealed class AsyncApiChannel
+    {
+        public string? Address { get; set; }
     }
 }
