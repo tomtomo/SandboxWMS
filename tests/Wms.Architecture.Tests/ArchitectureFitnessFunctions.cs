@@ -25,13 +25,13 @@ public class ArchitectureFitnessFunctions
     ];
 
     // Single source: tiap modul → layer (project) yang sudah lahir. Tambah modul/layer di sini.
-    // Outbound = Contracts-only di Phase 03b (consumer-first: Inventory consume WaveReleased/
-    // PickingCompleted/ShipmentDispatched; Domain/App/Infra/Api Outbound menyusul Phase 03c).
+    // Outbound = full-5 sejak Phase 03c (OutboundOrder/Wave/PickingTask: emit WaveReleased/
+    // PickingCompleted/ShipmentDispatched + consume StockAllocated → core flow E2E lengkap).
     private static readonly Dictionary<string, string[]> ModuleLayers = new()
     {
         ["Inbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
         ["Inventory"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
-        ["Outbound"] = ["Contracts"],
+        ["Outbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
     };
 
     // "internals" = layer selain Contracts; Contracts = published language yang BOLEH di-cross-ref.
