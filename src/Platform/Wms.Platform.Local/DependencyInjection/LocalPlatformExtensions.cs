@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Wms.BuildingBlocks.Application.Auditing;
 using Wms.BuildingBlocks.Application.Messaging;
+using Wms.BuildingBlocks.Application.Storage;
 using Wms.Platform.Local.Auditing;
 using Wms.Platform.Local.Messaging;
+using Wms.Platform.Local.Storage;
 
 namespace Wms.Platform.Local.DependencyInjection;
 
@@ -27,6 +29,15 @@ public static class LocalPlatformExtensions
     public static IServiceCollection AddLocalAuditing(this IServiceCollection services)
     {
         services.AddScoped<IAuditLogStore, LocalAuditLogStore>();
+        return services;
+    }
+
+    // What: composition adapter object-storage Local (port IObjectStore → filesystem)
+    // Why: byte attachment (ADR-0015) disimpan di filesystem lokal di bawah satu root. Adapter cloud
+    // (Blob/GCS) menggantikannya tanpa sentuh core. Singleton: stateless, root path tetap.
+    public static IServiceCollection AddLocalObjectStore(this IServiceCollection services, string rootPath)
+    {
+        services.AddSingleton<IObjectStore>(new LocalObjectStore(rootPath));
         return services;
     }
 }

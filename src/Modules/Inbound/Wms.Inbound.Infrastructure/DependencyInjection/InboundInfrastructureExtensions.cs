@@ -34,6 +34,7 @@ public static class InboundInfrastructureExtensions
         // Handler/validator/pipeline = AddInboundApplication (MediatR mendaftarkan handler).
         services.AddTransactionalMessaging();
         services.AddScoped<IGoodsReceiptRepository, GoodsReceiptRepository>();
+        services.AddScoped<IGRAttachmentRepository, GRAttachmentRepository>();
         return services;
     }
 }

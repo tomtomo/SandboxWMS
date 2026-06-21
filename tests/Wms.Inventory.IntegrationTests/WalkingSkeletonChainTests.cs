@@ -8,7 +8,10 @@ using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inbound.Application.DependencyInjection;
 using Wms.Inbound.Application.Features.ConfirmGoodsReceipt;
 using Wms.Inbound.Application.Features.CreateGoodsReceipt;
+using Wms.Inbound.Application.Features.DeclareScanComplete;
+using Wms.Inbound.Application.Features.ScanItem;
 using Wms.Inbound.Contracts;
+using Wms.Inbound.Domain;
 using Wms.Inbound.Infrastructure.DependencyInjection;
 using Wms.Inbound.Infrastructure.Persistence;
 using Wms.Inventory.Domain;
@@ -104,17 +107,27 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
             return new EventChain(inbound, inventory, publisher);
         }
 
+        // flow penuh state machine 03a: create (expectedLines) → scan tiap line Good (qty=expected,
+        // tak ada discrepancy) → declare complete → Pending, siap di-Confirm.
         public async Task<Guid> CreateGoodsReceiptAsync(string warehouseId, params (string Sku, int Qty)[] lines)
         {
             using var scope = _inbound.CreateScope();
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            var command = new CreateGoodsReceiptCommand(
-                warehouseId, [.. lines.Select(line => new CreateGoodsReceiptLine(line.Sku, line.Qty))]);
 
-            // lewat pipeline penuh (Logging→Validation→Transaction→Handler), bukan handler langsung
-            var result = await sender.Send(command);
-            Assert.True(result.IsSuccess);
-            return result.Value;
+            var create = await sender.Send(new CreateGoodsReceiptCommand(
+                warehouseId, [.. lines.Select(line => new CreateGoodsReceiptLine(line.Sku, line.Qty, "carton"))]));
+            Assert.True(create.IsSuccess);
+            var goodsReceiptId = create.Value;
+
+            foreach (var line in lines)
+            {
+                var scan = await sender.Send(new ScanItemCommand(
+                    goodsReceiptId, line.Sku, line.Qty, null, null, LineStatus.Good));
+                Assert.True(scan.IsSuccess);
+            }
+
+            Assert.True((await sender.Send(new DeclareScanCompleteCommand(goodsReceiptId))).IsSuccess);
+            return goodsReceiptId;
         }
 
         public async Task ConfirmGoodsReceiptAsync(Guid goodsReceiptId)
@@ -152,7 +165,9 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
         public static MessageEnvelope GRConfirmedEnvelope(string warehouseId, params (string Sku, int Qty)[] lines)
         {
             var payload = new GRConfirmedV1(
-                Guid.NewGuid(), warehouseId, [.. lines.Select(line => new ReceivedLineV1(line.Sku, line.Qty))]);
+                Guid.NewGuid(), warehouseId,
+                [.. lines.Select(line => new ReceivedLineV1(line.Sku, line.Qty, "Good", null, null))],
+                []);
 
             return new MessageEnvelope(
                 EventId: Guid.NewGuid(),

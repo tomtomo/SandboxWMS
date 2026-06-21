@@ -1,6 +1,6 @@
 # Phase 03a — GoodsReceipt Full State Machine + Two-Axis Discrepancy
 
-**Status:** planned
+**Status:** done (2026-06-21)
 
 **Pre-conditions:**
 - **02c done:** building block TEMPLATE reusable (pipeline `Result`→transport, AsyncAPI catalog + FF #11, SYSTEM actor + audit log + correlation-id + OTel baseline); `GoodsReceipt` minimal + `GRConfirmedV1` dari 01c ada; FF #1–#11 hijau.
@@ -42,6 +42,28 @@
 **Learning objective:** Rich aggregate + state machine; two-axis discrepancy modeling (ubiquitous language jujur, ADR-0013); enforcement domain invariant di aggregate (bukan DB); aggregate terpisah + reference-by-ID + object storage (byte off-row, ADR-0015).
 
 **Handoff notes:** `GoodsReceipt` full + `GRAttachment` + `IObjectStore` terkunci; `GRConfirmedV1` kini bawa `receivedLines`/`rejectedLines` real (Good vs QcHold). **03b** mengkonsumsi payload kaya ini: QcHold→Stock(Quarantine), Good→Stock(OnHand)+PutawayTask, lalu lengkapi lifecycle Stock + allocation. Snapshot master via seed; diganti read-API di 04a.
+
+**— Completion (2026-06-21).** Selesai & terverifikasi: `dotnet build Wms.sln` 0/0; **107 test hijau** (Inbound.Domain 48, BuildingBlocks 30, Inbound.Integration 13, Inventory.Integration 4, Inventory.Domain 4, Architecture FF 8). Migration `AddRichGoodsReceiptAndAttachments` apply bersih di Postgres riil (InfrastructureMigrationTests).
+
+**Keputusan sadar (auditable):**
+1. **Contract evolve non-breaking (tetap v1, ADR-0023):** `ReceivedLineV1` + `Status`(string Good/QcHold) + `Batch`/`Expiry`(nullable); + `RejectedLineV1`(sku/qty/reason) + `RejectedLines` di `GRConfirmedV1`. String (bukan enum) di contract → serializer-agnostic (ADR-0009); produser/konsumen translate di batas (ACL). asyncapi schema di-mirror.
+2. **Resolution = ATRIBUT pada `Discrepancy`** (`Action?`/`Note?`), bukan koleksi/tabel terpisah — konsisten Task 6 (hanya `gr_expected_lines`/`gr_scanned_lines`/`gr_discrepancies`); menegakkan pairing 1:1 + invariant resolution-before-Confirm.
+3. **`quantityChecks` transient** (computed property, di-`Ignore` EF) — bukan state ganda.
+4. **Discrepancy per (sku, type)**; dua sumbu independen (ADR-0013): qty (Short/Over) per expected line + kondisi (QcHold/WrongItem) per distinct-sku. WrongItem dikecualikan dari variance.
+5. **Derive di DOMAIN** (`BuildConfirmationOutcome`): OverDelivery+RejectExcess → **QcHold dipertahankan ke QC, Good di-trim** (cap=expectedQty, fill QcHold dulu); WrongItem→rejected ReturnToSupplier; excess→rejected RejectExcess.
+6. **Master (uom) via command-supplied snapshot** (stand-in PO/seed sampai 04a, ADR-0014).
+7. **`GRAttachment.Create` GENERATE `blobPath`** `{grId}/{attachmentId}/{fileName}` (invariant pola by-construction); `IObjectStore` Put(byte)→Add(row) urutan disiplin di slice (cegah orphan ROW).
+
+**Utang sadar / gap (JANGAN dibangun tanpa scope):**
+1. **Inventory consumer masih thin** (semua receivedLine→Stock OnHand, belum branch Status) — **03b** yang upgrade QcHold→Quarantine.
+2. **batch/expiry sudah di payload** tapi belum dikonsumsi (Stock 01c tanpa batch) — 03b pakai untuk Stock per-batch + FEFO.
+3. **Tak ada command/endpoint "apply default resolutions"** — hanya per-discrepancy `ResolveDiscrepancy`; `GoodsReceipt.ApplyDefaultResolutions()` ada di domain (dipakai unit test) tapi tak di-expose slice. Tambah bila UI butuh "SPV terima semua default".
+4. **UploadAttachment tak cek GR exists** (logical FK ADR-0015; orphan-attachment = app concern, defer); **soft-delete + byte cleanup** dorman (ADR-0015); **AV scan/content validation** defer.
+5. **Unexpected/foreign-SKU scan** (sku di luar expectedLines) tak ditangani eksplisit — gap (overview tak scope).
+6. **AuthZ deferred** — `// TODO-AUTH` di endpoint: ScanItem, (DeclareScanComplete→ScanItem), ResolveDiscrepancy, HoldGR, UploadAttachment, CreateGR, PostGR (07a).
+7. **Aspire dashboard smoke** (manual) belum dijalankan — build+DI+perilaku tervalidasi via test riil.
+
+**Git:** semua perubahan UNCOMMITTED — Tom yang commit (Rule 2). Saran message: `feat/03a-inbound-goodsreceipt-discrepancy`.
 
 **Touchpoint cert:** AZ-204 — Blob Storage *(pattern via `IObjectStore`; Blob konkret di 05)* → X. PCD — Cloud Storage *(pattern; GCS konkret di 06)* → X.
 

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Web.Correlation;
 using Wms.BuildingBlocks.Web.Security;
@@ -27,6 +28,15 @@ builder.Services.AddOutboxDispatcher();
 // AuditLogBehavior (pipeline Inbound) menulis audit out-of-band; IAuditable diisi interceptor.
 builder.Services.AddHttpContextCurrentUser();
 builder.Services.AddLocalAuditing();
+
+// Phase 03a: object storage Local (port IObjectStore) untuk byte GRAttachment (ADR-0015); root
+// path = config override atau folder di bawah content root. JSON string-enum agar REST menerima
+// LineStatus/DiscrepancyType/ResolutionAction sebagai nama (bukan angka).
+var objectStoreRoot = builder.Configuration["ObjectStore:RootPath"]
+    ?? Path.Combine(builder.Environment.ContentRootPath, "object-store");
+builder.Services.AddLocalObjectStore(objectStoreRoot);
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 var app = builder.Build();
 
