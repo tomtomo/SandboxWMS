@@ -23,6 +23,21 @@ public static class MessagingRailExtensions
         return services;
     }
 
+    // What: registrasi consumer-side retry → Dead Letter Channel pipeline (ADR-0005/0010)
+    // Why: host consumer cukup AddConsumerDeadLettering() lalu bungkus subscriber-nya dengan
+    // pipeline.Wrap(source, handler). Opsi + pipeline singleton (stateless, resolve scope
+    // sendiri per dead-letter). IDeadLetterStore tetap di-wire oleh Platform.<Cloud>.
+    public static IServiceCollection AddConsumerDeadLettering(
+        this IServiceCollection services, Action<ConsumerRetryOptions>? configure = null)
+    {
+        var options = new ConsumerRetryOptions();
+        configure?.Invoke(options);
+
+        services.AddSingleton(options);
+        services.AddSingleton<ConsumerDeadLetterPipeline>();
+        return services;
+    }
+
     // What: registrasi transactional messaging primitives (UoW + outbox-writer + inbox-guard)
     // Why: producer butuh IUnitOfWork + IIntegrationEventOutbox; consumer butuh IUnitOfWork
     // + IInboxGuard. Ketiganya scoped atas DbContext ambient modul (DB-per-service). Host

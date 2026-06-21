@@ -14,6 +14,10 @@
     <PackageVersion Include="coverlet.collector" Version="6.0.0" />
     <!-- Architecture fitness functions -->
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
+    <!-- FF #11 contract-coverage: parse docs/architecture/asyncapi.yaml (ADR-0023).
+         Parser .NET murni (MIT, net8.0-compatible) — BUKAN AsyncAPI CLI Node yang ditolak
+         ADR-0023, dan BUKAN SDK cloud (FF#1 aman). Hanya dipakai di Wms.Architecture.Tests. -->
+    <PackageVersion Include="YamlDotNet" Version="18.0.0" />
     <!-- Aspire (orkestrasi LOCAL — AppHost saja) -->
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />

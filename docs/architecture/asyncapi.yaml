@@ -1,0 +1,355 @@
+asyncapi: 3.0.0
+
+# What: Authoritative cross-context integration-event catalog (ADR-0023).
+# Why: satu artefak otoritatif yang menyatakan emitter -> receiver -> trigger untuk
+#   seam Event-Driven (ADR-0005). Tipe CLR di `*.Contracts` mengikat ke channel via
+#   logical identity `{module}.{event_snake}.v{N}`; FF #11 (Wms.Architecture.Tests)
+#   menjaga doc <-> kode tetap sinkron (directional: tiap tipe published wajib punya
+#   channel terdeklarasi). "Spec-wins" sebagai drift rule.
+# How: AsyncAPI 3.0 in-source, git-versioned & PR-reviewed seperti kode. Channel
+#   `inbound.gr_confirmed.v1` terisi penuh; empat channel lain placeholder (payload
+#   provisional dari overview/ADR, diratifikasi saat tipe-nya lahir di Phase 03).
+
+info:
+  title: TomSandboxWMS — Integration Event Catalog
+  version: 1.0.0
+  description: |
+    Katalog **otoritatif** integration-event lintas bounded-context untuk TomSandboxWMS
+    (ADR-0023). Hanya integration event ber-versi (`*.Contracts`, POCO) yang menyeberang
+    broker via Outbox/Inbox (ADR-0005, ADR-0009); domain event tetap in-process.
+
+    **Logical identity:** `{module}.{event_snake}.v{N}` — nama broker-facing yang stabil,
+    decoupled dari tipe CLR (rename kelas bukan breaking change). Di-bind di tipe contract
+    lewat `const string LogicalName`.
+
+    **SemVer bump rule (ADR-0023):** tambah field nullable = non-breaking (tetap `vN`);
+    remove / rename / retype / tighten = breaking → `v{N+1}` (channel baru, versi lama tetap).
+
+    ### Matriks emitter → receiver → trigger
+
+    | Logical name | Emitter | Receiver(s) | Trigger (overview) | Consumed? | Realisasi |
+    |---|---|---|---|---|---|
+    | `inbound.gr_confirmed.v1` | Inbound | Inventory | `GoodsReceipt` Pending→Confirmed (§A4 Confirm) | ✅ ya | **aktif** (01c/02b) |
+    | `outbound.wave_released.v1` | Outbound | Inventory | `Wave` (none)→Active; SPV buat wave (§C2) | ✅ ya | placeholder → 03b/03c |
+    | `inventory.stock_allocated.v1` | Inventory | Outbound | `Stock` Available→Allocated; semua line wave teralokasi (§C3) | ✅ ya | placeholder → 03b |
+    | `outbound.shipment_dispatched.v1` | Outbound | Inventory | `Wave` Ready→Dispatched (§C6) | ✅ ya | placeholder → 03c |
+    | `outbound.picking_completed.v1` | Outbound | Inventory | `PickingTask` Assigned→Completed (§B/§C5, ADR-0028) | ✅ ya | placeholder → 03c |
+    | `inventory.stock_low.v*` | Inventory | — (none) | Stock qty < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
+    | `inventory.stock_near_expiry.v*` | Inventory | — (none) | Batch expiry < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
+
+    Dua baris terakhir adalah **gap eksplisit** — sinyal yang (saat lahir) akan dipancarkan
+    tanpa konsumen; sengaja **tak diberi channel** sampai konsumennya ada (hormati reverse-
+    coverage sebagai known gap, ADR-0023). `StockQuarantineStale` bukan broker-event — di-wire
+    di Phase 07c via `IDelayedTaskQueue` (in-service delayed task), di luar katalog ini.
+
+    > **Drift guard:** FF #11 contract-coverage (`tests/Wms.Architecture.Tests`) mem-parse file
+    > ini + reflect tipe `*.Contracts`; tiap tipe published wajib punya channel `address` di sini.
+  license:
+    name: Sandbox / internal learning artifact
+  tags:
+    - name: eda
+      description: Event-Driven Architecture seam (ADR-0005)
+    - name: published-language
+      description: Integration events as Published Language (ADR-0009)
+
+defaultContentType: application/json
+
+#
+# CHANNELS — tiap `address` = logical identity yang dijaga FF #11.
+#
+channels:
+  inboundGrConfirmed:
+    address: inbound.gr_confirmed.v1
+    title: Goods Receipt Confirmed
+    summary: Penerimaan barang dikonfirmasi SPV — barang siap masuk inventory.
+    description: |
+      Dipancarkan Inbound saat `GoodsReceipt` transisi Pending→Confirmed (§A4). Membawa
+      `receivedLines[]` (lineStatus=Good/QcHold). Inventory: per line buat `Stock`
+      (Good→OnHand) + `PutawayTask`. **Channel terisi penuh** (CLR: `GRConfirmedV1`).
+    messages:
+      grConfirmed:
+        $ref: '#/components/messages/GRConfirmedV1'
+
+  outboundWaveReleased:
+    address: outbound.wave_released.v1
+    title: Wave Released (placeholder)
+    summary: Wave dirilis untuk diproses — picking & dispatch bersama.
+    description: |
+      **Placeholder** — payload provisional (overview §C2), diratifikasi saat `WaveReleasedV1`
+      (`Wms.Outbound.Contracts`) lahir di Phase 03c. Dipancarkan Outbound saat `Wave`
+      (none)→Active; Inventory alokasi `Stock` Available→Allocated per FEFO.
+    messages:
+      waveReleased:
+        $ref: '#/components/messages/WaveReleasedV1'
+
+  inventoryStockAllocated:
+    address: inventory.stock_allocated.v1
+    title: Stock Allocated (placeholder)
+    summary: Stock direservasi untuk sebuah wave.
+    description: |
+      **Placeholder** — payload provisional (overview §C3), diratifikasi saat `StockAllocatedV1`
+      (`Wms.Inventory.Contracts`) lahir di Phase 03b. Dipancarkan Inventory setelah semua line
+      wave teralokasi; Outbound buat `PickingTask` per entry `allocations[]`.
+    messages:
+      stockAllocated:
+        $ref: '#/components/messages/StockAllocatedV1'
+
+  outboundShipmentDispatched:
+    address: outbound.shipment_dispatched.v1
+    title: Shipment Dispatched (placeholder)
+    summary: Wave didispatch — truk keluar gudang.
+    description: |
+      **Placeholder** — payload provisional (overview §C6), diratifikasi saat `ShipmentDispatchedV1`
+      (`Wms.Outbound.Contracts`) lahir di Phase 03c. Dipancarkan Outbound saat `Wave`
+      Ready→Dispatched; Inventory remove `Stock` Picked terikat `waveId`.
+    messages:
+      shipmentDispatched:
+        $ref: '#/components/messages/ShipmentDispatchedV1'
+
+  outboundPickingCompleted:
+    address: outbound.picking_completed.v1
+    title: Picking Completed (placeholder)
+    summary: Satu PickingTask selesai — stock pindah ke staging.
+    description: |
+      **Placeholder** — event ke-5, **diputuskan di ADR-0028** untuk merealisasikan sinyal
+      overview §B (`PickingTask` Assigned→Completed → `Stock` Allocated→Picked). Payload
+      provisional, diratifikasi saat `PickingCompletedV1` (`Wms.Outbound.Contracts`) lahir di
+      Phase 03c. Inventory: transisi `Stock` Allocated→Picked + set `pickingTaskId`/staging.
+    messages:
+      pickingCompleted:
+        $ref: '#/components/messages/PickingCompletedV1'
+
+#
+# OPERATIONS — perspektif aplikasi: `send` = emitter, `receive` = consumer (AsyncAPI 3.0).
+#   Menyatakan seam emitter→receiver secara eksplisit (routing sudah final di ADR walau
+#   payload placeholder belum diisi).
+#
+operations:
+  inboundSendGrConfirmed:
+    action: send
+    channel:
+      $ref: '#/channels/inboundGrConfirmed'
+    summary: Inbound mempublish GRConfirmed setelah GoodsReceipt dikonfirmasi.
+    messages:
+      - $ref: '#/channels/inboundGrConfirmed/messages/grConfirmed'
+
+  inventoryReceiveGrConfirmed:
+    action: receive
+    channel:
+      $ref: '#/channels/inboundGrConfirmed'
+    summary: Inventory meng-consume GRConfirmed → Stock(OnHand) + PutawayTask(Assigned).
+    messages:
+      - $ref: '#/channels/inboundGrConfirmed/messages/grConfirmed'
+
+  outboundSendWaveReleased:
+    action: send
+    channel:
+      $ref: '#/channels/outboundWaveReleased'
+    summary: (placeholder) Outbound mempublish WaveReleased saat wave dibuat.
+    messages:
+      - $ref: '#/channels/outboundWaveReleased/messages/waveReleased'
+
+  inventoryReceiveWaveReleased:
+    action: receive
+    channel:
+      $ref: '#/channels/outboundWaveReleased'
+    summary: (placeholder) Inventory meng-consume WaveReleased → alokasi Stock (FEFO).
+    messages:
+      - $ref: '#/channels/outboundWaveReleased/messages/waveReleased'
+
+  inventorySendStockAllocated:
+    action: send
+    channel:
+      $ref: '#/channels/inventoryStockAllocated'
+    summary: (placeholder) Inventory mempublish StockAllocated setelah alokasi.
+    messages:
+      - $ref: '#/channels/inventoryStockAllocated/messages/stockAllocated'
+
+  outboundReceiveStockAllocated:
+    action: receive
+    channel:
+      $ref: '#/channels/inventoryStockAllocated'
+    summary: (placeholder) Outbound meng-consume StockAllocated → buat PickingTask.
+    messages:
+      - $ref: '#/channels/inventoryStockAllocated/messages/stockAllocated'
+
+  outboundSendShipmentDispatched:
+    action: send
+    channel:
+      $ref: '#/channels/outboundShipmentDispatched'
+    summary: (placeholder) Outbound mempublish ShipmentDispatched saat dispatch.
+    messages:
+      - $ref: '#/channels/outboundShipmentDispatched/messages/shipmentDispatched'
+
+  inventoryReceiveShipmentDispatched:
+    action: receive
+    channel:
+      $ref: '#/channels/outboundShipmentDispatched'
+    summary: (placeholder) Inventory meng-consume ShipmentDispatched → remove Stock Picked.
+    messages:
+      - $ref: '#/channels/outboundShipmentDispatched/messages/shipmentDispatched'
+
+  outboundSendPickingCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/outboundPickingCompleted'
+    summary: (placeholder) Outbound mempublish PickingCompleted per PickingTask selesai.
+    messages:
+      - $ref: '#/channels/outboundPickingCompleted/messages/pickingCompleted'
+
+  inventoryReceivePickingCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/outboundPickingCompleted'
+    summary: (placeholder) Inventory meng-consume PickingCompleted → Stock Allocated→Picked.
+    messages:
+      - $ref: '#/channels/outboundPickingCompleted/messages/pickingCompleted'
+
+#
+# COMPONENTS — message + schema reusable.
+#
+components:
+  messages:
+    GRConfirmedV1:
+      name: GRConfirmedV1
+      title: Goods Receipt Confirmed (v1)
+      summary: Penerimaan barang dikonfirmasi; lines siap jadi Stock.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/GRConfirmedV1Payload'
+
+    WaveReleasedV1:
+      name: WaveReleasedV1
+      title: Wave Released (v1, placeholder)
+      summary: Provisional — diratifikasi saat tipe lahir di Phase 03c.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WaveReleasedV1Payload'
+
+    StockAllocatedV1:
+      name: StockAllocatedV1
+      title: Stock Allocated (v1, placeholder)
+      summary: Provisional — diratifikasi saat tipe lahir di Phase 03b.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/StockAllocatedV1Payload'
+
+    ShipmentDispatchedV1:
+      name: ShipmentDispatchedV1
+      title: Shipment Dispatched (v1, placeholder)
+      summary: Provisional — diratifikasi saat tipe lahir di Phase 03c.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ShipmentDispatchedV1Payload'
+
+    PickingCompletedV1:
+      name: PickingCompletedV1
+      title: Picking Completed (v1, placeholder)
+      summary: Provisional (ADR-0028) — diratifikasi saat tipe lahir di Phase 03c.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PickingCompletedV1Payload'
+
+  schemas:
+    # --- Channel terisi penuh: harus cermin tipe Wms.Inbound.Contracts.GRConfirmedV1 ---
+    GRConfirmedV1Payload:
+      type: object
+      additionalProperties: false
+      required: [grId, warehouseId, receivedLines]
+      properties:
+        grId:
+          type: string
+          format: uuid
+          description: Identitas GoodsReceipt yang dikonfirmasi.
+        warehouseId:
+          type: string
+          description: Warehouse tempat penerimaan.
+        receivedLines:
+          type: array
+          description: Line yang diterima (lineStatus Good/QcHold).
+          items:
+            $ref: '#/components/schemas/ReceivedLineV1'
+    ReceivedLineV1:
+      type: object
+      additionalProperties: false
+      required: [sku, quantity]
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+
+    # --- Placeholder: shape provisional dari overview/ADR; ratifikasi di Phase 03 ---
+    WaveReleasedV1Payload:
+      type: object
+      description: |
+        PROVISIONAL (overview §C2). Diratifikasi saat WaveReleasedV1 dibuat (Phase 03c).
+      required: [waveId, lines]
+      properties:
+        waveId:
+          type: string
+          format: uuid
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              orderId: { type: string, format: uuid }
+              sku: { type: string }
+              qty: { type: integer, minimum: 1 }
+
+    StockAllocatedV1Payload:
+      type: object
+      description: |
+        PROVISIONAL (overview §C3). Diratifikasi saat StockAllocatedV1 dibuat (Phase 03b).
+      required: [waveId, allocations]
+      properties:
+        waveId:
+          type: string
+          format: uuid
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              sku: { type: string }
+              locationId: { type: string }
+              batch: { type: string }
+              qty: { type: integer, minimum: 1 }
+              stockId: { type: string, format: uuid }
+
+    ShipmentDispatchedV1Payload:
+      type: object
+      description: |
+        PROVISIONAL (overview §C6). Diratifikasi saat ShipmentDispatchedV1 dibuat (Phase 03c).
+      required: [waveId]
+      properties:
+        waveId:
+          type: string
+          format: uuid
+
+    PickingCompletedV1Payload:
+      type: object
+      description: |
+        PROVISIONAL (ADR-0028). Diratifikasi saat PickingCompletedV1 dibuat (Phase 03c).
+      required: [waveId, pickingTaskId, stockId, sku, qty, stagingLocationId]
+      properties:
+        waveId:
+          type: string
+          format: uuid
+        pickingTaskId:
+          type: string
+          format: uuid
+        stockId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        batch:
+          type: string
+        qty:
+          type: integer
+          minimum: 1
+        stagingLocationId:
+          type: string
