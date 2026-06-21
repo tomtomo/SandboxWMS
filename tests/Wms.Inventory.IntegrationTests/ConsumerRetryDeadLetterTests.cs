@@ -100,7 +100,9 @@ public sealed class ConsumerRetryDeadLetterTests(PostgresFixture fixture)
     private static MessageEnvelope GRConfirmedEnvelope(string warehouseId, params (string Sku, int Qty)[] lines)
     {
         var payload = new GRConfirmedV1(
-            Guid.NewGuid(), warehouseId, [.. lines.Select(line => new ReceivedLineV1(line.Sku, line.Qty))]);
+            Guid.NewGuid(), warehouseId,
+            [.. lines.Select(line => new ReceivedLineV1(line.Sku, line.Qty, "Good", null, null))],
+            []);
 
         return new MessageEnvelope(
             EventId: Guid.NewGuid(),

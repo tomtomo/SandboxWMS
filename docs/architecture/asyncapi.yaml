@@ -255,7 +255,7 @@ components:
     GRConfirmedV1Payload:
       type: object
       additionalProperties: false
-      required: [grId, warehouseId, receivedLines]
+      required: [grId, warehouseId, receivedLines, rejectedLines]
       properties:
         grId:
           type: string
@@ -266,19 +266,48 @@ components:
           description: Warehouse tempat penerimaan.
         receivedLines:
           type: array
-          description: Line yang diterima (lineStatus Good/QcHold).
+          description: Line yang diterima (Good→OnHand, QcHold→Quarantine di Inventory).
           items:
             $ref: '#/components/schemas/ReceivedLineV1'
+        rejectedLines:
+          type: array
+          description: Line ditolak (WrongItem→ReturnToSupplier, OverDelivery excess→RejectExcess) — metadata.
+          items:
+            $ref: '#/components/schemas/RejectedLineV1'
     ReceivedLineV1:
       type: object
       additionalProperties: false
-      required: [sku, quantity]
+      required: [sku, quantity, status]
       properties:
         sku:
           type: string
         quantity:
           type: integer
           minimum: 1
+        status:
+          type: string
+          enum: [Good, QcHold]
+          description: Kondisi line (two-axis ADR-0013) — menentukan Stock OnHand vs Quarantine.
+        batch:
+          type: [string, "null"]
+          description: Nomor batch (opsional; Stock per-batch + FEFO di 03b).
+        expiry:
+          type: [string, "null"]
+          format: date
+          description: Tanggal kadaluarsa (opsional; FEFO di 03b).
+    RejectedLineV1:
+      type: object
+      additionalProperties: false
+      required: [sku, quantity, reason]
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          enum: [ReturnToSupplier, RejectExcess]
 
     # --- Placeholder: shape provisional dari overview/ADR; ratifikasi di Phase 03 ---
     WaveReleasedV1Payload:

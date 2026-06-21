@@ -18,6 +18,9 @@ public sealed class InboundDbContext(DbContextOptions<InboundDbContext> options)
     // What: DbSet aggregate root GoodsReceipt (write-model modul Inbound)
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
 
+    // What: DbSet aggregate root GRAttachment (terpisah, ADR-0015) — logical FK ke GoodsReceipt
+    public DbSet<GRAttachment> Attachments => Set<GRAttachment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

@@ -218,6 +218,67 @@ namespace Wms.Inbound.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox", "infrastructure");
                 });
 
+            modelBuilder.Entity("Wms.Inbound.Domain.GRAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("blob_path");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid>("GoodsReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("goods_receipt_id");
+
+                    b.Property<DateTimeOffset>("ModifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("modified_at");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("modified_by");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("uploaded_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_gr_attachments");
+
+                    b.HasIndex("GoodsReceiptId")
+                        .HasDatabaseName("ix_gr_attachments_goods_receipt_id");
+
+                    b.ToTable("gr_attachments", "inbound");
+                });
+
             modelBuilder.Entity("Wms.Inbound.Domain.GoodsReceipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -232,6 +293,16 @@ namespace Wms.Inbound.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("DockDoor")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("dock_door");
+
+                    b.Property<string>("HoldReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("hold_reason");
+
                     b.Property<DateTimeOffset>("ModifiedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("modified_at");
@@ -240,11 +311,21 @@ namespace Wms.Inbound.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("modified_by");
 
+                    b.Property<string>("PoRef")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("po_ref");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("status");
+
+                    b.Property<string>("SupplierId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("supplier_id");
 
                     b.Property<string>("WarehouseId")
                         .IsRequired()
@@ -260,7 +341,7 @@ namespace Wms.Inbound.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Wms.Inbound.Domain.GoodsReceipt", b =>
                 {
-                    b.OwnsMany("Wms.Inbound.Domain.GoodsReceiptLine", "Lines", b1 =>
+                    b.OwnsMany("Wms.Inbound.Domain.Discrepancy", "Discrepancies", b1 =>
                         {
                             b1.Property<int>("id")
                                 .ValueGeneratedOnAdd()
@@ -269,9 +350,114 @@ namespace Wms.Inbound.Infrastructure.Persistence.Migrations
 
                             NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
 
-                            b1.Property<int>("Quantity")
+                            b1.Property<string>("Action")
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("action");
+
+                            b1.Property<string>("Note")
+                                .HasMaxLength(512)
+                                .HasColumnType("character varying(512)")
+                                .HasColumnName("note");
+
+                            b1.Property<string>("Sku")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("sku");
+
+                            b1.Property<string>("Type")
+                                .IsRequired()
+                                .HasMaxLength(16)
+                                .HasColumnType("character varying(16)")
+                                .HasColumnName("type");
+
+                            b1.Property<Guid>("goods_receipt_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("goods_receipt_id");
+
+                            b1.HasKey("id")
+                                .HasName("pk_gr_discrepancies");
+
+                            b1.HasIndex("goods_receipt_id")
+                                .HasDatabaseName("ix_gr_discrepancies_goods_receipt_id");
+
+                            b1.ToTable("gr_discrepancies", "inbound");
+
+                            b1.WithOwner()
+                                .HasForeignKey("goods_receipt_id")
+                                .HasConstraintName("fk_gr_discrepancies_goods_receipts_goods_receipt_id");
+                        });
+
+                    b.OwnsMany("Wms.Inbound.Domain.ExpectedLine", "ExpectedLines", b1 =>
+                        {
+                            b1.Property<int>("id")
+                                .ValueGeneratedOnAdd()
                                 .HasColumnType("integer")
-                                .HasColumnName("quantity");
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
+
+                            b1.Property<int>("ExpectedQty")
+                                .HasColumnType("integer")
+                                .HasColumnName("expected_qty");
+
+                            b1.Property<string>("Sku")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("sku");
+
+                            b1.Property<string>("Uom")
+                                .IsRequired()
+                                .HasMaxLength(16)
+                                .HasColumnType("character varying(16)")
+                                .HasColumnName("uom");
+
+                            b1.Property<Guid>("goods_receipt_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("goods_receipt_id");
+
+                            b1.HasKey("id")
+                                .HasName("pk_gr_expected_lines");
+
+                            b1.HasIndex("goods_receipt_id")
+                                .HasDatabaseName("ix_gr_expected_lines_goods_receipt_id");
+
+                            b1.ToTable("gr_expected_lines", "inbound");
+
+                            b1.WithOwner()
+                                .HasForeignKey("goods_receipt_id")
+                                .HasConstraintName("fk_gr_expected_lines_goods_receipts_goods_receipt_id");
+                        });
+
+                    b.OwnsMany("Wms.Inbound.Domain.ScannedLine", "ScannedLines", b1 =>
+                        {
+                            b1.Property<int>("id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
+
+                            b1.Property<int>("ActualQty")
+                                .HasColumnType("integer")
+                                .HasColumnName("actual_qty");
+
+                            b1.Property<string>("Batch")
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("batch");
+
+                            b1.Property<DateOnly?>("Expiry")
+                                .HasColumnType("date")
+                                .HasColumnName("expiry");
+
+                            b1.Property<string>("LineStatus")
+                                .IsRequired()
+                                .HasMaxLength(16)
+                                .HasColumnType("character varying(16)")
+                                .HasColumnName("line_status");
 
                             b1.Property<string>("Sku")
                                 .IsRequired()
@@ -284,19 +470,23 @@ namespace Wms.Inbound.Infrastructure.Persistence.Migrations
                                 .HasColumnName("goods_receipt_id");
 
                             b1.HasKey("id")
-                                .HasName("pk_gr_lines");
+                                .HasName("pk_gr_scanned_lines");
 
                             b1.HasIndex("goods_receipt_id")
-                                .HasDatabaseName("ix_gr_lines_goods_receipt_id");
+                                .HasDatabaseName("ix_gr_scanned_lines_goods_receipt_id");
 
-                            b1.ToTable("gr_lines", "inbound");
+                            b1.ToTable("gr_scanned_lines", "inbound");
 
                             b1.WithOwner()
                                 .HasForeignKey("goods_receipt_id")
-                                .HasConstraintName("fk_gr_lines_goods_receipts_goods_receipt_id");
+                                .HasConstraintName("fk_gr_scanned_lines_goods_receipts_goods_receipt_id");
                         });
 
-                    b.Navigation("Lines");
+                    b.Navigation("Discrepancies");
+
+                    b.Navigation("ExpectedLines");
+
+                    b.Navigation("ScannedLines");
                 });
 #pragma warning restore 612, 618
         }

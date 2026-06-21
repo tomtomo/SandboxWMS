@@ -1,10 +1,12 @@
 namespace Wms.Inbound.Domain;
 
-// What: lifecycle state GoodsReceipt — minimal walking-skeleton (Phase 01c)
-// Why: skeleton hanya butuh transisi Create→Confirm; Pending/Hold + two-axis
-// discrepancy (ADR-0013) menyusul di Phase 03a — jangan dibangun dini.
+// What: lifecycle state GoodsReceipt — state machine penuh (Phase 03a, overview §A)
+// Why: penerimaan barang melewati tahap eksplisit: scan (InProgress) → review discrepancy
+// (Pending) → keputusan SPV (Confirmed atau Hold). State jadi guard transisi legal di aggregate.
 public enum GoodsReceiptStatus
 {
     InProgress,
-    Confirmed
+    Pending,
+    Confirmed,
+    Hold
 }
