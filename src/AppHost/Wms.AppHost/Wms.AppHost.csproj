@@ -16,6 +16,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- CPM mem-pin Microsoft.Extensions.Hosting* = 8.0.1 untuk service net8 (selaras EF 8).
+         AppHost (net10/Aspire 13.4.6) menariknya transitif >= 10.0.8 → transitive pinning
+         memicu downgrade. VersionOverride memutus konflik HANYA di AppHost; service net8
+         tetap 8.0.1. (Tegangan mixed-TFM khas AppHost net10 + services net8.) -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" VersionOverride="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" VersionOverride="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Hosts\Local\Wms.Inbound.Host.Local\Wms.Inbound.Host.Local.csproj" />
   </ItemGroup>
 

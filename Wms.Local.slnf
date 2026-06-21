@@ -15,7 +15,9 @@
       "src\\Modules\\Inbound\\Wms.Inbound.Api\\Wms.Inbound.Api.csproj",
       "src\\Modules\\Inbound\\Wms.Inbound.Contracts\\Wms.Inbound.Contracts.csproj",
       "src\\Hosts\\Local\\Wms.Inbound.Host.Local\\Wms.Inbound.Host.Local.csproj",
-      "tests\\Wms.Architecture.Tests\\Wms.Architecture.Tests.csproj"
+      "src\\Tools\\Wms.MigrationRunner\\Wms.MigrationRunner.csproj",
+      "tests\\Wms.Architecture.Tests\\Wms.Architecture.Tests.csproj",
+      "tests\\Wms.Inbound.IntegrationTests\\Wms.Inbound.IntegrationTests.csproj"
     ]
   }
 }

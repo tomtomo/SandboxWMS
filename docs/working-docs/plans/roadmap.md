@@ -22,7 +22,7 @@ Status: `planned | in-progress | blocked | done`.
 | # | slug | judul | status | depends-on |
 |---|---|---|---|---|
 | 01a | solution-skeleton-fitness-functions | Solution `Wms` + BuildingBlocks seedwork + 6 FF + Aspire AppHost | done | — |
-| 01b | outbox-inbox-messaging-rail | Outbox dispatcher + Inbox dedup + `IMessagePublisher`(Local) + envelope | planned | 01a |
+| 01b | outbox-inbox-messaging-rail | Outbox dispatcher + Inbox dedup + `IMessagePublisher`(Local) + envelope | done | 01a |
 | 01c | inbound-inventory-event-chain | Thin slice E2E: GR → `GRConfirmed` → Stock + PutawayTask | planned | 01b |
 
 ### Phase 02 — Harden Building Blocks (LOCAL) · prinsip 2

@@ -17,5 +17,19 @@
     <!-- Aspire (orkestrasi LOCAL — AppHost saja) -->
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+    <!-- Persistence & messaging rail (Phase 01b). EF Core stack di-lock-step 8.0.15
+         (selaras dotnet-ef tooling 8.0.15). Bukan SDK cloud → FF#1 aman.
+         Npgsql provider 8.0.11 (rilis 8.0.x terbaru) butuh EF Relational >= 8.0.11. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="8.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.15" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <!-- snake_case kolom/tabel (idiom Postgres) — diterapkan di seam UseNpgsql -->
+    <PackageVersion Include="EFCore.NamingConventions" Version="8.0.3" />
+    <!-- BackgroundService (OutboxDispatcher) + host generik (MigrationRunner) -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
+    <!-- Integration tests: real Postgres via Testcontainers -->
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
   </ItemGroup>
 </Project>
