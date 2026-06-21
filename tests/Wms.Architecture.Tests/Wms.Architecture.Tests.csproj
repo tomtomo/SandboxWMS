@@ -41,6 +41,12 @@
     <ProjectReference Include="..\..\src\Modules\Outbound\Wms.Outbound.Infrastructure\Wms.Outbound.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Modules\Outbound\Wms.Outbound.Api\Wms.Outbound.Api.csproj" />
     <ProjectReference Include="..\..\src\Modules\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Domain\Wms.MasterData.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Application\Wms.MasterData.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Infrastructure\Wms.MasterData.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Api\Wms.MasterData.Api.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Contracts\Wms.MasterData.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Grpc\Wms.MasterData.Grpc.csproj" />
   </ItemGroup>
 
 </Project>

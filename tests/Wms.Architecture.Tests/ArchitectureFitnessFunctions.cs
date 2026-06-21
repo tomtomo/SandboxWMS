@@ -25,13 +25,15 @@ public class ArchitectureFitnessFunctions
     ];
 
     // Single source: tiap modul → layer (project) yang sudah lahir. Tambah modul/layer di sini.
-    // Outbound = full-5 sejak Phase 03c (OutboundOrder/Wave/PickingTask: emit WaveReleased/
-    // PickingCompleted/ShipmentDispatched + consume StockAllocated → core flow E2E lengkap).
+    // Outbound = full-5 sejak Phase 03c. MasterData = full-6 sejak Phase 04a (supporting authority:
+    // gRPC read-API + cache-aside) — SATU-SATUNYA modul dengan layer Grpc (.proto read-API sinkron,
+    // ADR-0006/0009); Grpc bukan "internal layer" (boleh di-cross-ref antar-modul, FF#3).
     private static readonly Dictionary<string, string[]> ModuleLayers = new()
     {
         ["Inbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
         ["Inventory"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
         ["Outbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
+        ["MasterData"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts", "Grpc"],
     };
 
     // "internals" = layer selain Contracts; Contracts = published language yang BOLEH di-cross-ref.
@@ -248,6 +250,30 @@ public class ArchitectureFitnessFunctions
     {
         var offenders = result.FailingTypeNames is { } names ? string.Join(", ", names) : "(none)";
         return $"{asm.GetName().Name} {violation}: {offenders}";
+    }
+
+    // FF #8 — `*.Api` tak menyentuh DbContext / EF Core (reader-delegation; ADR-0011).
+    // What: boundary READ terisolasi dari persistence — service gRPC & endpoint REST di *.Api delegasi
+    // ke read-port (IMasterDataReader, cache-aside) / MediatR, BUKAN inject DbContext. Menjaga gRPC
+    // read-API MasterData (& REST tiap modul) bebas EF: *.Api tak boleh meng-query persistence langsung.
+    // How: NetArchTest — tiap modul ber-layer Api tak boleh depend ke namespace Microsoft.EntityFrameworkCore.
+    [Fact]
+    public void Ff8_module_api_does_not_depend_on_dbcontext()
+    {
+        string[] forbidden = ["Microsoft.EntityFrameworkCore"];
+
+        var apis = ModuleLayers
+            .Where(module => module.Value.Contains("Api"))
+            .Select(module => Load($"Wms.{module.Key}.Api"));
+
+        foreach (var asm in apis)
+        {
+            var result = Types.InAssembly(asm)
+                .ShouldNot().HaveDependencyOnAny(forbidden)
+                .GetResult();
+
+            Assert.True(result.IsSuccessful, Describe(asm, "depend ke EF Core (DbContext) di *.Api (FF#8)", result));
+        }
     }
 
     // FF #11 — contract-coverage: tiap integration event published (`*.Contracts`) WAJIB

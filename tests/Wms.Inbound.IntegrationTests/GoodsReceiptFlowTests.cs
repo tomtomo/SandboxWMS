@@ -37,8 +37,8 @@ public sealed class GoodsReceiptFlowTests(PostgresFixture fixture)
         // expected: SKU-A 10, SKU-B 10
         var grId = (await SendAsync(provider, new CreateGoodsReceiptCommand("WH-JKT",
         [
-            new CreateGoodsReceiptLine("SKU-A", 10, "carton"),
-            new CreateGoodsReceiptLine("SKU-B", 10, "carton"),
+            new CreateGoodsReceiptLine("SKU-A", 10),
+            new CreateGoodsReceiptLine("SKU-B", 10),
         ]))).Value;
 
         // SKU-A bersih (Good 10). SKU-B: Good 10 + QcHold 2 + WrongItem 1 → over (12>10) + QcHold + WrongItem
@@ -122,6 +122,7 @@ public sealed class GoodsReceiptFlowTests(PostgresFixture fixture)
         var provider = new ServiceCollection()
             .AddLogging()
             .AddInboundApplication()
+            .AddInboundProductCatalogStub()
             .AddInboundInfrastructure(await fixture.CreateDatabaseAsync())
             .AddLocalMessaging()
             .AddLocalAuditing()

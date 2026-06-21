@@ -28,6 +28,7 @@ public sealed class PipelineBehaviorTests(PostgresFixture fixture)
         await using var provider = new ServiceCollection()
             .AddLogging()
             .AddInboundApplication()
+            .AddInboundProductCatalogStub()
             .AddInboundInfrastructure(await fixture.CreateDatabaseAsync())
             .BuildServiceProvider();
 

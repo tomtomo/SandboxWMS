@@ -4,6 +4,8 @@
     <ProjectReference Include="..\Wms.Inventory.Application\Wms.Inventory.Application.csproj" />
     <!-- Dispatcher deserializes incoming cross-context events by LogicalName (FF#3: *.Contracts only) -->
     <ProjectReference Include="..\..\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
+    <!-- gRPC read-API client MasterData (default-location resolution; FF#3 .Grpc cross-module OK) -->
+    <ProjectReference Include="..\..\MasterData\Wms.MasterData.Grpc\Wms.MasterData.Grpc.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Infrastructure\Wms.BuildingBlocks.Infrastructure.csproj" />
   </ItemGroup>
 

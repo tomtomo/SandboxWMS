@@ -11,6 +11,12 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <!-- Polly v8 (ADR-0020): ResiliencePipelineDefaults factory (split-timeout gRPC 30s/HTTP 5s).
+         Polly.Core = ResiliencePipelineBuilder + strategi Timeout/Retry/CircuitBreaker; Polly.Extensions
+         = AddResiliencePipeline DI + ResiliencePipelineProvider<string> (per-client key). Bukan SDK
+         cloud → FF#1 aman. -->
+    <PackageReference Include="Polly.Core" />
+    <PackageReference Include="Polly.Extensions" />
   </ItemGroup>
 
   <PropertyGroup>

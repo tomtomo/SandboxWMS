@@ -1,7 +1,12 @@
+using Grpc.Core;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
+using Wms.BuildingBlocks.Infrastructure.Resilience;
 using Wms.BuildingBlocks.Web.Correlation;
+using Wms.BuildingBlocks.Web.Grpc;
 using Wms.BuildingBlocks.Web.Security;
+using Wms.MasterData.Grpc;
 using Wms.Inventory.Api;
 using Wms.Inventory.Application.DependencyInjection;
 using Wms.Inventory.Application.Features.ConsumeGoodsReceiptConfirmed;
@@ -37,6 +42,23 @@ builder.Services.AddConsumerDeadLettering();
 // menulis Stock/PutawayTask; request REST membawa identitas operator. Satu host, dua origin — aman.
 builder.Services.AddHttpContextCurrentUser();
 builder.Services.AddLocalAuditing();
+
+// Phase 04a follow-up: gRPC read-API client MasterData (resolve default location receiving/quarantine,
+// ADR-0011) + RESILIENCE split-timeout (ADR-0020 pipeline "wms-grpc" 30s) + s2s token (ADR-0021 Local
+// stub). Address via Aspire service discovery ("masterdata"); h2c insecure + CallCredentials.
+builder.Services.AddGrpcResiliencePipeline();
+builder.Services.AddLocalServiceTokenProvider();
+builder.Services.AddGrpcClient<MasterDataReadApi.MasterDataReadApiClient>(options =>
+        options.Address = new Uri("http://masterdata"))
+    .ConfigureChannel((serviceProvider, channel) =>
+    {
+        channel.Credentials = ChannelCredentials.Create(
+            ChannelCredentials.Insecure,
+            ServiceAuthCallCredentials.Create(
+                serviceProvider.GetRequiredService<IServiceTokenProvider>(), audience: "masterdata"));
+        channel.UnsafeUseInsecureChannelCallCredentials = true;
+    });
+builder.Services.AddMasterDataLocationCatalog();
 
 var app = builder.Build();
 

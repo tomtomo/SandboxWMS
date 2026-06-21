@@ -88,12 +88,14 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
             var inbound = new ServiceCollection()
                 .AddLogging()
                 .AddInboundApplication()
+                .AddInboundProductCatalogStub()
                 .AddInboundInfrastructure(await fixture.CreateDatabaseAsync())
                 .BuildServiceProvider();
 
             var inventory = new ServiceCollection()
                 .AddLogging()
                 .AddInventoryInfrastructure(await fixture.CreateDatabaseAsync())
+                .AddInventoryLocationCatalogStub()
                 .BuildServiceProvider();
 
             // broker stand-in in-proc: producer publish → subscriber consumer (co-located di test)
@@ -115,7 +117,7 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
             var create = await sender.Send(new CreateGoodsReceiptCommand(
-                warehouseId, [.. lines.Select(line => new CreateGoodsReceiptLine(line.Sku, line.Qty, "carton"))]));
+                warehouseId, [.. lines.Select(line => new CreateGoodsReceiptLine(line.Sku, line.Qty))]));
             Assert.True(create.IsSuccess);
             var goodsReceiptId = create.Value;
 

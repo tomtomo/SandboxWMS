@@ -78,6 +78,7 @@ public sealed class ConsumerRetryDeadLetterTests(PostgresFixture fixture)
         var inventory = new ServiceCollection()
             .AddLogging()
             .AddInventoryInfrastructure(await fixture.CreateDatabaseAsync())
+            .AddInventoryLocationCatalogStub()
             .AddLocalMessaging()
             .BuildServiceProvider();
 

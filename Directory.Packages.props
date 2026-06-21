@@ -35,6 +35,10 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
     <!-- Integration tests: real Postgres via Testcontainers -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
+    <!-- Phase 04a integration: WebApplicationFactory (gRPC read-API server in-proc) + GrpcChannel client.
+         Mvc.Testing 8.0.15 selaras runtime net8 (ADR-0007); Grpc.Net.Client 2.80.0 lock-step gRPC stack. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.15" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.80.0" />
     <!-- Application pipeline (Phase 02a). MediatR 12.5.0 = versi Apache-2.0 TERAKHIR
          (13.0.0+ dual-license komersial, Lucky Penny 2 Jul 2025); dipin sengaja di line
          free OSS. FluentValidation utk ValidationBehavior; Grpc.Core.Api = abstraksi
@@ -59,5 +63,19 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <!-- gRPC stack (Phase 04a, ADR-0006/0009): server+client+codegen, lock-step dgn Grpc.Core.Api
+         2.80.0 (lantai transitive Aspire di atas). Grpc.Tools = codegen build-time (PrivateAssets
+         di *.Grpc). Google.Protobuf = runtime message, SAH di *.Grpc (ADR-0009); FF#1 aman karena
+         CloudSdkNamespaces pakai "Google.Cloud" (bukan "Google") — Google.Protobuf tak terjaring. -->
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.80.0" />
+    <PackageVersion Include="Grpc.Net.ClientFactory" Version="2.80.0" />
+    <PackageVersion Include="Grpc.Tools" Version="2.80.0" />
+    <PackageVersion Include="Google.Protobuf" Version="3.35.1" />
+    <!-- Polly v8 (Phase 04a, ADR-0020): ResiliencePipelineDefaults factory (Timeout→Retry→CB,
+         split-timeout gRPC~30s/HTTP~5s) di BuildingBlocks.Infrastructure. Polly.Extensions =
+         AddResiliencePipeline + ResiliencePipelineProvider<string>. Selaras dgn Polly v8 yang
+         dibawa Microsoft.Extensions.Http.Resilience 10.7.0 (AddStandardResilienceHandler). -->
+    <PackageVersion Include="Polly.Core" Version="8.7.0" />
+    <PackageVersion Include="Polly.Extensions" Version="8.7.0" />
   </ItemGroup>
 </Project>

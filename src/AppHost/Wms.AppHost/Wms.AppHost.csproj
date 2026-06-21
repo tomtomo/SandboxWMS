@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\Hosts\Local\Wms.Inbound.Host.Local\Wms.Inbound.Host.Local.csproj" />
     <ProjectReference Include="..\..\Hosts\Local\Wms.Inventory.Host.Local\Wms.Inventory.Host.Local.csproj" />
     <ProjectReference Include="..\..\Hosts\Local\Wms.Outbound.Host.Local\Wms.Outbound.Host.Local.csproj" />
+    <ProjectReference Include="..\..\Hosts\Local\Wms.MasterData.Host.Local\Wms.MasterData.Host.Local.csproj" />
   </ItemGroup>
 
 </Project>

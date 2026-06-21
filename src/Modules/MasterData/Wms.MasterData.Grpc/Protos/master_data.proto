@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+option csharp_namespace = "Wms.MasterData.Grpc";
+
+package masterdata.v1;
+
+// What: gRPC read-API MasterData (ADR-0006 gRPC internal; ADR-0011 read-API)
+// Why: kontrak SINKRON antar-service untuk core modul mengambil master Warehouse/Location/Product
+// by-id. Read-only & jarang berubah → di-cache cache-aside di sisi konsumen (server) + resilience
+// Polly split-timeout di sisi client. NOT-FOUND dipetakan ke gRPC status NotFound (ResultException
+// Interceptor server), bukan flag di payload. .proto ber-versi terpisah dari event Contracts (ADR-0009).
+service MasterDataReadApi {
+  rpc GetProduct (GetProductRequest) returns (ProductReply);
+  rpc GetWarehouse (GetWarehouseRequest) returns (WarehouseReply);
+  rpc GetLocation (GetLocationRequest) returns (LocationReply);
+  // resolve DEFAULT location untuk (warehouse, type) — mis. ReceivingArea/QuarantineArea gudang X
+  rpc GetDefaultLocation (GetDefaultLocationRequest) returns (LocationReply);
+}
+
+message GetProductRequest {
+  string sku = 1;
+}
+
+// Field kritikal (uom, batch_tracking_required) = sumber snapshot core (ADR-0014).
+message ProductReply {
+  string sku = 1;
+  string name = 2;
+  string uom = 3;
+  bool batch_tracking_required = 4;
+  bool expiry_tracking_required = 5;
+  bool qc_required_on_receipt = 6;
+  optional int32 shelf_life_days = 7;
+}
+
+message GetWarehouseRequest {
+  string warehouse_id = 1;
+}
+
+message WarehouseReply {
+  string warehouse_id = 1;
+  string name = 2;
+  string address = 3;
+}
+
+message GetLocationRequest {
+  string location_id = 1;
+}
+
+// resolve lokasi default per peran (warehouse + type). LocationType (enum di bawah) = forward-ref proto3 OK.
+message GetDefaultLocationRequest {
+  string warehouse_id = 1;
+  LocationType type = 2;
+}
+
+// proto3 enum: 0 = UNSPECIFIED (konvensi). Dipetakan eksplisit ke domain LocationType di *.Api
+// (BUKAN dari ordinal) — urutan enum domain/proto bisa berbeda.
+enum LocationType {
+  LOCATION_TYPE_UNSPECIFIED = 0;
+  LOCATION_TYPE_RECEIVING_AREA = 1;
+  LOCATION_TYPE_RACK = 2;
+  LOCATION_TYPE_QUARANTINE_AREA = 3;
+  LOCATION_TYPE_STAGING_AREA = 4;
+}
+
+message LocationReply {
+  string location_id = 1;
+  string warehouse_id = 2;
+  LocationType type = 3;
+  string code = 4;
+}

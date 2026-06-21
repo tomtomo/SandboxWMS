@@ -1,9 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Wms.BuildingBlocks.Application.Auditing;
+using Wms.BuildingBlocks.Application.Caching;
 using Wms.BuildingBlocks.Application.Messaging;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Application.Storage;
 using Wms.Platform.Local.Auditing;
+using Wms.Platform.Local.Caching;
 using Wms.Platform.Local.Messaging;
+using Wms.Platform.Local.Security;
 using Wms.Platform.Local.Storage;
 
 namespace Wms.Platform.Local.DependencyInjection;
@@ -38,6 +42,25 @@ public static class LocalPlatformExtensions
     public static IServiceCollection AddLocalObjectStore(this IServiceCollection services, string rootPath)
     {
         services.AddSingleton<IObjectStore>(new LocalObjectStore(rootPath));
+        return services;
+    }
+
+    // What: composition adapter cache Local (port ICacheStore → in-proc TTL; ADR-0011)
+    // Why: cache-aside MasterData read-API butuh store; Local = in-memory. Singleton (state cache hidup
+    // selama proses). Cloud (Redis/Memorystore) swap tanpa sentuh decorator. Dipakai 04a (MasterData)
+    // & reuse 04b/04d.
+    public static IServiceCollection AddLocalCaching(this IServiceCollection services)
+    {
+        services.AddSingleton<ICacheStore, InMemoryCacheStore>();
+        return services;
+    }
+
+    // What: composition adapter service-token Local (port IServiceTokenProvider → trust-stub; ADR-0021)
+    // Why: hop gRPC s2s butuh bearer; Local = token kosong (tak ada platform identity). Singleton
+    // (stateless). Cloud (Managed Identity / SA OIDC) swap tanpa sentuh core/interceptor.
+    public static IServiceCollection AddLocalServiceTokenProvider(this IServiceCollection services)
+    {
+        services.AddSingleton<IServiceTokenProvider, LocalServiceTokenProvider>();
         return services;
     }
 }
