@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Wms.BuildingBlocks.Infrastructure.Auditing;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.Inventory.Application.Abstractions;
 using Wms.Inventory.Application.Features.ConsumeGoodsReceiptConfirmed;
@@ -13,16 +14,19 @@ namespace Wms.Inventory.Infrastructure.DependencyInjection;
 // memetakan DbContext→InventoryDbContext (rail generik bekerja atas DbContext ambient,
 // FF#4/#6) + transactional messaging + repos + consumer + dispatcher.
 // How: AddDbContext + AddScoped<DbContext> delegasi; AddTransactionalMessaging (UoW/inbox);
-// consumer scoped; dispatcher singleton (pegang IServiceScopeFactory).
+// consumer scoped; dispatcher singleton (pegang IServiceScopeFactory). Interceptor audit
+// di-resolve dari sp (overload (sp,options)) → ICurrentUser scoped ter-inject benar per pesan.
 public static class InventoryInfrastructureExtensions
 {
     public static IServiceCollection AddInventoryInfrastructure(
         this IServiceCollection services, string connectionString)
     {
-        services.AddDbContext<InventoryDbContext>(options => options
+        services.AddAuditableEntityInterceptor();
+        services.AddDbContext<InventoryDbContext>((sp, options) => options
             .UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsHistoryTable("__ef_migrations_history", InventoryDbContext.Schema))
-            .UseSnakeCaseNamingConvention());
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>()));
 
         services.AddScoped<DbContext>(sp => sp.GetRequiredService<InventoryDbContext>());
 

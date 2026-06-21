@@ -3,19 +3,25 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
 namespace Wms.Platform.Hosting;
 
 // What: Service Defaults (Aspire-style cross-cutting host config, ADR-0008)
-// Why: konfigurasi lintas-host (health, service discovery, HTTP resilience) dikunci
+// Why: konfigurasi lintas-host (health, service discovery, HTTP resilience, OTel) dikunci
 // di SATU tempat agnostic — tiap host cukup AddServiceDefaults(), konsisten lintas
-// service tanpa cloud SDK. OTel baseline ditambahkan di Phase 02c.
+// service tanpa cloud SDK. OTel vendor-neutral (W3C/OTLP) → portabel lintas-cloud.
 // How: extension di IHostApplicationBuilder agar jalan untuk web-host & worker.
 public static class ServiceDefaultsExtensions
 {
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
+        builder.ConfigureOpenTelemetry();
+
         builder.ConfigureDefaultHealthChecks();
 
         builder.Services.AddServiceDiscovery();
@@ -28,6 +34,40 @@ public static class ServiceDefaultsExtensions
             http.AddStandardResilienceHandler();
             http.AddServiceDiscovery();
         });
+
+        return builder;
+    }
+
+    // What: OpenTelemetry baseline — traces + metrics + logs (ADR-0008; ADR-0024 baseline)
+    // Why: observability terpusat di service-defaults supaya SEMUA host memancarkan telemetry
+    // seragam tanpa cloud SDK. Ini fondasi: trace dalam-proses + korelasi (correlation-id),
+    // BUKAN W3C cross-broker penuh (ADR-0024 → Phase 07b). Vendor-neutral: ekspor via OTLP,
+    // backend (Aspire dashboard lokal / App Insights / Cloud Trace) = keputusan deploy-time.
+    // How: logging OTel (formatted message + scopes → correlation-id ikut) + metrics (ASP.NET/
+    // HttpClient/runtime) + tracing (ASP.NET/HttpClient + ActivitySource app); exporter OTLP
+    // aktif saat OTEL_EXPORTER_OTLP_ENDPOINT diset (Aspire menyetelnya otomatis per resource).
+    private static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder)
+        where TBuilder : IHostApplicationBuilder
+    {
+        builder.Logging.AddOpenTelemetry(logging =>
+        {
+            logging.IncludeFormattedMessage = true;
+            logging.IncludeScopes = true;
+        });
+
+        builder.Services.AddOpenTelemetry()
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddRuntimeInstrumentation())
+            .WithTracing(tracing => tracing
+                .AddSource(builder.Environment.ApplicationName)
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation());
+
+        // OTLP exporter hanya saat endpoint terkonfigurasi (Aspire inject OTEL_EXPORTER_OTLP_ENDPOINT)
+        if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+            builder.Services.AddOpenTelemetry().UseOtlpExporter();
 
         return builder;
     }

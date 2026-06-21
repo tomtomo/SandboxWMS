@@ -49,5 +49,15 @@
          net8.0-compatible — TFM runtime tetap .NET 8 LTS (ADR-0007). -->
     <PackageVersion Include="Grpc.Core.Api" Version="2.80.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <!-- OpenTelemetry baseline (Phase 02c, ADR-0008/0024). Hanya dipakai di Platform.Hosting
+         (service defaults) — BUKAN BuildingBlocks/Modules, jadi FF#1 aman (OTel ≠ SDK cloud).
+         Core (Extensions.Hosting/Exporter.OTLP) = 1.16.0; paket instrumentation rilis sedikit
+         tertinggal di belakang core (state normal OTel) — AspNetCore 1.15.2, Http/Runtime 1.15.1.
+         OTLP exporter mengirim ke Aspire dashboard via OTEL_EXPORTER_OTLP_ENDPOINT (deploy-time). -->
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
   </ItemGroup>
 </Project>

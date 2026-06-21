@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using Wms.BuildingBlocks.Application.Auditing;
 using Wms.BuildingBlocks.Application.Messaging;
+using Wms.Platform.Local.Auditing;
 using Wms.Platform.Local.Messaging;
 
 namespace Wms.Platform.Local.DependencyInjection;
@@ -16,6 +18,15 @@ public static class LocalPlatformExtensions
         services.AddSingleton<InMemoryMessagePublisher>();
         services.AddSingleton<IMessagePublisher>(sp => sp.GetRequiredService<InMemoryMessagePublisher>());
         services.AddScoped<IDeadLetterStore, LocalDeadLetterStore>();
+        return services;
+    }
+
+    // What: composition adapter audit Local (port IAuditLogStore → tabel Postgres audit_log)
+    // Why: dipisah dari messaging — audit operasional (ADR-0022) concern berbeda dari rail.
+    // Scoped: butuh DbContext scoped; AuditLogBehavior me-resolve-nya di SCOPE BARU per write.
+    public static IServiceCollection AddLocalAuditing(this IServiceCollection services)
+    {
+        services.AddScoped<IAuditLogStore, LocalAuditLogStore>();
         return services;
     }
 }
