@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Wms.Inbound.Application\Wms.Inbound.Application.csproj" />
+    <!-- gRPC read-API client MasterData (sync; FF#3 mengizinkan *.Grpc cross-module, ADR-0006/0009) -->
+    <ProjectReference Include="..\..\MasterData\Wms.MasterData.Grpc\Wms.MasterData.Grpc.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Infrastructure\Wms.BuildingBlocks.Infrastructure.csproj" />
   </ItemGroup>
 

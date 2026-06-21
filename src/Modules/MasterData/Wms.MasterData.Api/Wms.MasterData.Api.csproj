@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wms.MasterData.Application\Wms.MasterData.Application.csproj" />
+    <ProjectReference Include="..\Wms.MasterData.Grpc\Wms.MasterData.Grpc.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Web\Wms.BuildingBlocks.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- gRPC server hosting (MapGrpcService + runtime) untuk service impl read-API. Service impl
+         delegasi ke read-port (reader-delegation) — TIDAK inject DbContext (dijaga FF#8). -->
+    <PackageReference Include="Grpc.AspNetCore" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

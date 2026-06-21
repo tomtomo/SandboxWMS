@@ -7,6 +7,11 @@
     <ProjectReference Include="..\..\..\Platform\Wms.Platform.Hosting\Wms.Platform.Hosting.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- gRPC client factory (AddGrpcClient) untuk read-API MasterData (Phase 04a). -->
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>

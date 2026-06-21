@@ -42,7 +42,7 @@ Status: `planned | in-progress | blocked | done`.
 ### Phase 04 — Supporting Services (LOCAL) · prinsip 3
 | # | slug | judul | status | depends-on |
 |---|---|---|---|---|
-| 04a | masterdata-read-api-cache-aside | Warehouse/Location/Product + gRPC read-API + `ICacheStore` cache-aside + snapshot wiring | planned | 03c |
+| 04a | masterdata-read-api-cache-aside | Warehouse/Location/Product + gRPC read-API + `ICacheStore` cache-aside + snapshot wiring | done | 03c |
 | 04b | auth-jwt-refresh-token-rotation | User/Role/Permission/RefreshToken + login JWT RS256 + Argon2id + rotation + read-API | planned | 04a |
 | 04c | reporting-projections | Pure consumer projection (Inbox-committed): StockOnHandView/ReceivingSummary/… | planned | 03c |
 | 04d | notification-async-delivery | Subscription + Delivery + async worker + idempotency + retry/DLQ + channel ports | planned | 04b |

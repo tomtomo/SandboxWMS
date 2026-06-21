@@ -9,6 +9,8 @@ using Wms.Inventory.Infrastructure.DependencyInjection;
 using Wms.Inventory.Infrastructure.Persistence;
 using Wms.Outbound.Infrastructure.DependencyInjection;
 using Wms.Outbound.Infrastructure.Persistence;
+using Wms.MasterData.Infrastructure.DependencyInjection;
+using Wms.MasterData.Infrastructure.Persistence;
 
 // What: MigrationRunner — env-neutral migration applier (ADR-0010 amendment)
 // Why: menutup lubang operasional "N migration assembly diterapkan bagaimana" pada
@@ -36,11 +38,18 @@ var outboundConnection = builder.Configuration.GetConnectionString("outbounddb")
 
 builder.Services.AddOutboundInfrastructure(outboundConnection);
 
+var masterDataConnection = builder.Configuration.GetConnectionString("masterdatadb")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:masterdatadb tidak diset (appsettings.json / env / --ConnectionStrings:masterdatadb=...).");
+
+builder.Services.AddMasterDataInfrastructure(masterDataConnection);
+
 using var host = builder.Build();
 
 await ApplyMigrationsAsync<InboundDbContext>(host, "Inbound");
 await ApplyMigrationsAsync<InventoryDbContext>(host, "Inventory");
 await ApplyMigrationsAsync<OutboundDbContext>(host, "Outbound");
+await ApplyMigrationsAsync<MasterDataDbContext>(host, "MasterData");
 
 return 0;
 

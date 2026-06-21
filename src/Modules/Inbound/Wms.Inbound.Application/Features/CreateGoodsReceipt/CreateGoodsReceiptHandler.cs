@@ -9,19 +9,33 @@ namespace Wms.Inbound.Application.Features.CreateGoodsReceipt;
 // What: CQRS — Command Handler (MediatR) — write path lewat aggregate (ADR-0004)
 // Why: satu-satunya tempat yang membuka GoodsReceipt; mengembalikan Result (no-throw-for-business,
 // ADR-0019); transaksi & rollback dikelola TransactionBehavior. Tak emit event (Create bukan fakta
-// yang dipublish, ADR-0026).
-// How: map DTO → ExpectedLineInput → factory Create (invariant → Result) → persist via repository
-// port → SaveChanges (commit di-finalize TransactionBehavior).
+// yang dipublish, ADR-0026). uom di-SNAPSHOT dari MasterData read-API (ADR-0014/0011) via IProductCatalog
+// (ACL) — MENGGANTIKAN uom yang dulu disuplai caller/seed; sku tak dikenal → gagal (tak bisa snapshot
+// uom produk asing).
+// How: per line resolve Product master (gRPC + cache-aside di MasterData) → ExpectedLineInput(uom master)
+// → factory Create (invariant → Result) → persist via repository port → SaveChanges (commit di pipeline).
 public sealed class CreateGoodsReceiptHandler(
-    IGoodsReceiptRepository repository, IUnitOfWork unitOfWork)
+    IProductCatalog productCatalog,
+    IGoodsReceiptRepository repository,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<CreateGoodsReceiptCommand, Result<Guid>>
 {
+    // sku di luar katalog MasterData = data/contract error → Validation (→400)
+    private static readonly Error UnknownProduct =
+        Error.Validation("inbound.unknown_product", "Product (sku) tidak dikenal di MasterData.");
+
     public async Task<Result<Guid>> Handle(
         CreateGoodsReceiptCommand command, CancellationToken cancellationToken)
     {
-        var expectedLines = command.ExpectedLines
-            .Select(line => new ExpectedLineInput(line.Sku, line.ExpectedQty, line.Uom))
-            .ToList();
+        var expectedLines = new List<ExpectedLineInput>(command.ExpectedLines.Count);
+        foreach (var line in command.ExpectedLines)
+        {
+            var product = await productCatalog.GetProductAsync(line.Sku, cancellationToken);
+            if (product is null)
+                return Result.Failure<Guid>(UnknownProduct);
+
+            expectedLines.Add(new ExpectedLineInput(line.Sku, line.ExpectedQty, product.Uom));
+        }
 
         var result = GoodsReceipt.Create(
             GoodsReceiptId.New(), command.WarehouseId, expectedLines,

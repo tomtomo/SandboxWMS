@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\Modules\Inbound\Wms.Inbound.Infrastructure\Wms.Inbound.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Inventory\Wms.Inventory.Infrastructure\Wms.Inventory.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Outbound\Wms.Outbound.Infrastructure\Wms.Outbound.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\MasterData\Wms.MasterData.Infrastructure\Wms.MasterData.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

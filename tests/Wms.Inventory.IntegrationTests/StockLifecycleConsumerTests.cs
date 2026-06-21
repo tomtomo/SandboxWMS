@@ -159,6 +159,7 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
         var sp = new ServiceCollection()
             .AddLogging()
             .AddInventoryInfrastructure(await fixture.CreateDatabaseAsync())
+            .AddInventoryLocationCatalogStub()
             .AddLocalMessaging()
             .BuildServiceProvider();
 

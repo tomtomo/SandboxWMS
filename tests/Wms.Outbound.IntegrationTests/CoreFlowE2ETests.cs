@@ -100,6 +100,7 @@ public sealed class CoreFlowE2ETests(PostgresFixture fixture)
             var outbound = new ServiceCollection()
                 .AddLogging()
                 .AddOutboundApplication()
+                .AddOutboundProductCatalogStub()
                 .AddOutboundInfrastructure(await fixture.CreateDatabaseAsync())
                 .AddLocalAuditing()
                 .BuildServiceProvider();

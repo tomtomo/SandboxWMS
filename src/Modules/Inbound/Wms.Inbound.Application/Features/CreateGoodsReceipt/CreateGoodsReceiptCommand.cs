@@ -3,8 +3,9 @@ using Wms.BuildingBlocks.Application.Messaging;
 namespace Wms.Inbound.Application.Features.CreateGoodsReceipt;
 
 // What: CQRS Command (ADR-0004) — buka header GoodsReceipt baru (state InProgress)
-// Why: write-intent eksplisit; expectedLines = snapshot PO (sku/expectedQty/uom) — uom dibekukan
-// per ADR-0014 (stand-in PO/seed sampai MasterData 04a). poRef/supplierId/dockDoor = metadata header.
+// Why: write-intent eksplisit; expectedLines = snapshot PO (sku/expectedQty). uom TIDAK lagi disuplai
+// caller — di-snapshot dari MasterData read-API (ADR-0014/0011) di handler (gRPC), supaya makna dokumen
+// historis stabil walau Product master berubah. poRef/supplierId/dockDoor = metadata header.
 public sealed record CreateGoodsReceiptCommand(
     string WarehouseId,
     IReadOnlyList<CreateGoodsReceiptLine> ExpectedLines,
@@ -12,4 +13,4 @@ public sealed record CreateGoodsReceiptCommand(
     string? SupplierId = null,
     string? DockDoor = null) : ICommand<Guid>;
 
-public sealed record CreateGoodsReceiptLine(string Sku, int ExpectedQty, string Uom);
+public sealed record CreateGoodsReceiptLine(string Sku, int ExpectedQty);

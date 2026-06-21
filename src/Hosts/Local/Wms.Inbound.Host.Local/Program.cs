@@ -1,10 +1,17 @@
 using System.Text.Json.Serialization;
+using Grpc.Core;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
+using Wms.BuildingBlocks.Infrastructure.Resilience;
 using Wms.BuildingBlocks.Web.Correlation;
+using Wms.BuildingBlocks.Web.Grpc;
 using Wms.BuildingBlocks.Web.Security;
 using Wms.Inbound.Api;
+using Wms.Inbound.Application.Abstractions;
 using Wms.Inbound.Application.DependencyInjection;
 using Wms.Inbound.Infrastructure.DependencyInjection;
+using Wms.Inbound.Infrastructure.MasterData;
+using Wms.MasterData.Grpc;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
 
@@ -37,6 +44,24 @@ var objectStoreRoot = builder.Configuration["ObjectStore:RootPath"]
 builder.Services.AddLocalObjectStore(objectStoreRoot);
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+// Phase 04a: gRPC read-API client MasterData (snapshot uom expectedLines, ADR-0011/0014) + RESILIENCE
+// split-timeout (ADR-0020: pipeline "wms-grpc" 30s absorb cold-start) + s2s token (ADR-0021: Local stub
+// kosong). Address via Aspire service discovery ("masterdata"). ConfigureChannel: h2c insecure +
+// CallCredentials (bearer+correlation) → UnsafeUseInsecureChannelCallCredentials agar terkirim di Local.
+builder.Services.AddGrpcResiliencePipeline();
+builder.Services.AddLocalServiceTokenProvider();
+builder.Services.AddGrpcClient<MasterDataReadApi.MasterDataReadApiClient>(options =>
+        options.Address = new Uri("http://masterdata"))
+    .ConfigureChannel((serviceProvider, channel) =>
+    {
+        channel.Credentials = ChannelCredentials.Create(
+            ChannelCredentials.Insecure,
+            ServiceAuthCallCredentials.Create(
+                serviceProvider.GetRequiredService<IServiceTokenProvider>(), audience: "masterdata"));
+        channel.UnsafeUseInsecureChannelCallCredentials = true;
+    });
+builder.Services.AddMasterDataProductCatalog();
 
 var app = builder.Build();
 

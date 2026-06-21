@@ -18,4 +18,11 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- IProductCatalog/ILocationCatalog (ACL port) Inbound/Outbound/Inventory untuk stub test (Phase 04a). -->
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Application\Wms.Inbound.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Outbound\Wms.Outbound.Application\Wms.Outbound.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Application\Wms.Inventory.Application.csproj" />
+  </ItemGroup>
+
 </Project>

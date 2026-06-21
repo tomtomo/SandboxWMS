@@ -1,11 +1,18 @@
+using Grpc.Core;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
+using Wms.BuildingBlocks.Infrastructure.Resilience;
 using Wms.BuildingBlocks.Web.Correlation;
+using Wms.BuildingBlocks.Web.Grpc;
 using Wms.BuildingBlocks.Web.Security;
+using Wms.MasterData.Grpc;
 using Wms.Outbound.Api;
+using Wms.Outbound.Application.Abstractions;
 using Wms.Outbound.Application.DependencyInjection;
 using Wms.Outbound.Application.Features.ConsumeStockAllocated;
 using Wms.Outbound.Infrastructure.DependencyInjection;
+using Wms.Outbound.Infrastructure.MasterData;
 using Wms.Outbound.Infrastructure.Messaging;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
@@ -34,6 +41,23 @@ builder.Services.AddConsumerDeadLettering();
 // PickingTask; request REST membawa identitas operator. Satu host, dua origin — aman.
 builder.Services.AddHttpContextCurrentUser();
 builder.Services.AddLocalAuditing();
+
+// Phase 04a: gRPC read-API client MasterData (snapshot uom orderLines, ADR-0011/0014) + RESILIENCE
+// split-timeout (ADR-0020: pipeline "wms-grpc" 30s) + s2s token (ADR-0021: Local stub). Address via
+// Aspire service discovery ("masterdata"); h2c insecure + CallCredentials (bearer+correlation).
+builder.Services.AddGrpcResiliencePipeline();
+builder.Services.AddLocalServiceTokenProvider();
+builder.Services.AddGrpcClient<MasterDataReadApi.MasterDataReadApiClient>(options =>
+        options.Address = new Uri("http://masterdata"))
+    .ConfigureChannel((serviceProvider, channel) =>
+    {
+        channel.Credentials = ChannelCredentials.Create(
+            ChannelCredentials.Insecure,
+            ServiceAuthCallCredentials.Create(
+                serviceProvider.GetRequiredService<IServiceTokenProvider>(), audience: "masterdata"));
+        channel.UnsafeUseInsecureChannelCallCredentials = true;
+    });
+builder.Services.AddMasterDataProductCatalog();
 
 var app = builder.Build();
 

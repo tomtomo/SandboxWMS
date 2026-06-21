@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Wms.BuildingBlocks.Infrastructure.Resilience;
 
 namespace Wms.Platform.Hosting;
 
@@ -26,12 +27,15 @@ public static class ServiceDefaultsExtensions
 
         builder.Services.AddServiceDiscovery();
 
-        // What: resilience default untuk semua HttpClient (ADR-0020, baseline)
-        // Why: outbound HTTP dapat retry/timeout/circuit-breaker standar secara default-on;
-        // kalibrasi split-timeout (gRPC vs HTTP) didalami di Phase 07c.
+        // What: resilience default untuk semua HttpClient (ADR-0020) — sisi HTTP dari split-timeout
+        // Why: outbound HTTP dapat retry/timeout/circuit-breaker standar default-on, dengan
+        // attempt-timeout FAIL-FAST ~5s (ResiliencePipelineDefaults.HttpAttemptTimeout, single source) —
+        // kontras gRPC ~30s (toleran cold-start, di-wire per gRPC client). Phase 04a MEN-SET default
+        // split-timeout; kalibrasi angka dgn traffic nyata = Phase 07c.
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
-            http.AddStandardResilienceHandler();
+            http.AddStandardResilienceHandler(options =>
+                options.AttemptTimeout.Timeout = ResiliencePipelineDefaults.HttpAttemptTimeout);
             http.AddServiceDiscovery();
         });
 
