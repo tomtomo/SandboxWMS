@@ -4,6 +4,9 @@ using Wms.BuildingBlocks.Infrastructure.Auditing;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.Inventory.Application.Abstractions;
 using Wms.Inventory.Application.Features.ConsumeGoodsReceiptConfirmed;
+using Wms.Inventory.Application.Features.ConsumePickingCompleted;
+using Wms.Inventory.Application.Features.ConsumeShipmentDispatched;
+using Wms.Inventory.Application.Features.ConsumeWaveReleased;
 using Wms.Inventory.Infrastructure.Messaging;
 using Wms.Inventory.Infrastructure.Persistence;
 
@@ -33,7 +36,13 @@ public static class InventoryInfrastructureExtensions
         services.AddTransactionalMessaging();
         services.AddScoped<IStockRepository, StockRepository>();
         services.AddScoped<IPutawayTaskRepository, PutawayTaskRepository>();
+
+        // consumer integration-event (scoped per pesan; bukan MediatR handler) — Phase 03b: 4 event.
         services.AddScoped<GoodsReceiptConfirmedConsumer>();
+        services.AddScoped<WaveReleasedConsumer>();
+        services.AddScoped<PickingCompletedConsumer>();
+        services.AddScoped<ShipmentDispatchedConsumer>();
+
         services.AddSingleton<InventoryIntegrationEventDispatcher>();
         return services;
     }

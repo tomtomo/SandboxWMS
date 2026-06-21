@@ -34,6 +34,9 @@
     <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Domain\Wms.Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Application\Wms.Inventory.Application.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Infrastructure\Wms.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Api\Wms.Inventory.Api.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Wms.Inventory.Contracts\Wms.Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

@@ -99,7 +99,7 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
             // broker stand-in in-proc: producer publish → subscriber consumer (co-located di test)
             var publisher = new InMemoryMessagePublisher(NullLogger<InMemoryMessagePublisher>.Instance);
             var dispatcher = inventory.GetRequiredService<InventoryIntegrationEventDispatcher>();
-            publisher.Subscribe(dispatcher.HandleAsync);
+            publisher.Subscribe(dispatcher.HandleGoodsReceiptConfirmedAsync);
 
             await CreateSchemaAsync<InboundDbContext>(inbound);
             await CreateSchemaAsync<InventoryDbContext>(inventory);

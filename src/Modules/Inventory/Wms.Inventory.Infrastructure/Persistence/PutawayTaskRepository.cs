@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Wms.Inventory.Application.Abstractions;
 using Wms.Inventory.Domain;
 
@@ -11,4 +12,7 @@ internal sealed class PutawayTaskRepository(InventoryDbContext db) : IPutawayTas
         db.PutawayTasks.Add(putawayTask);
         return Task.CompletedTask;
     }
+
+    public Task<PutawayTask?> GetAsync(PutawayTaskId id, CancellationToken cancellationToken = default)
+        => db.PutawayTasks.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 }

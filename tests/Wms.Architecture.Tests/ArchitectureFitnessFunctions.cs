@@ -25,10 +25,13 @@ public class ArchitectureFitnessFunctions
     ];
 
     // Single source: tiap modul → layer (project) yang sudah lahir. Tambah modul/layer di sini.
+    // Outbound = Contracts-only di Phase 03b (consumer-first: Inventory consume WaveReleased/
+    // PickingCompleted/ShipmentDispatched; Domain/App/Infra/Api Outbound menyusul Phase 03c).
     private static readonly Dictionary<string, string[]> ModuleLayers = new()
     {
         ["Inbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
-        ["Inventory"] = ["Domain", "Application", "Infrastructure"],
+        ["Inventory"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
+        ["Outbound"] = ["Contracts"],
     };
 
     // "internals" = layer selain Contracts; Contracts = published language yang BOLEH di-cross-ref.
@@ -69,8 +72,11 @@ public class ArchitectureFitnessFunctions
     public void Ff2_domain_has_no_framework_dependency()
     {
         string[] forbidden = ["Microsoft.EntityFrameworkCore", "MediatR", "Microsoft.AspNetCore"];
-        var domains = ModuleNames
-            .Select(m => Load($"Wms.{m}.Domain"))
+        // Honor layer yang dideklarasikan (data-driven) — modul Contracts-only (mis. Outbound di
+        // Phase 03b) tak punya Domain; jangan paksa Load assembly yang belum lahir.
+        var domains = ModuleLayers
+            .Where(m => m.Value.Contains("Domain"))
+            .Select(m => Load($"Wms.{m.Key}.Domain"))
             .Prepend(Load("Wms.BuildingBlocks.Domain"));
 
         foreach (var asm in domains)

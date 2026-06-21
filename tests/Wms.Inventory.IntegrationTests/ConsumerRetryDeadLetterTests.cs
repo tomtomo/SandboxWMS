@@ -94,7 +94,8 @@ public sealed class ConsumerRetryDeadLetterTests(PostgresFixture fixture)
             new ConsumerRetryOptions { MaxAttempts = MaxAttempts, RetryDelay = TimeSpan.Zero },
             NullLogger<ConsumerDeadLetterPipeline>.Instance);
         var dispatcher = inventory.GetRequiredService<InventoryIntegrationEventDispatcher>();
-        return pipeline.Wrap(GoodsReceiptConfirmedConsumer.HandlerType, dispatcher.HandleAsync);
+        return pipeline.Wrap(
+            GoodsReceiptConfirmedConsumer.HandlerType, dispatcher.HandleGoodsReceiptConfirmedAsync);
     }
 
     private static MessageEnvelope GRConfirmedEnvelope(string warehouseId, params (string Sku, int Qty)[] lines)
