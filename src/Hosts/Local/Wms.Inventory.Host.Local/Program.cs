@@ -9,10 +9,10 @@ using Wms.Platform.Local.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// service defaults agnostic: health + service discovery + HTTP resilience (ADR-0008)
+// service defaults agnostic: health + service discovery + HTTP resilience + OTel (ADR-0008)
 builder.AddServiceDefaults();
 
-// Inventory = consumer modul: DbContext (inventory + inbox/outbox) + adapter Local +
+// Inventory = consumer modul: DbContext (inventory + inbox/outbox/audit_log) + adapter Local +
 // Outbox dispatcher (idle di 01c — Inventory belum emit; aktif saat StockAllocated, Phase 03).
 var inventoryConnection = builder.Configuration.GetConnectionString("inventorydb")
     ?? throw new InvalidOperationException("ConnectionStrings:inventorydb tidak diset (Aspire WithReference).");
@@ -21,6 +21,11 @@ builder.Services.AddInventoryInfrastructure(inventoryConnection);
 builder.Services.AddLocalMessaging();
 builder.Services.AddOutboxDispatcher();
 builder.Services.AddConsumerDeadLettering();
+
+// Phase 02c: host origin-MESIN (consumer, tanpa request HTTP) → ICurrentUser default = SYSTEM
+// (di-TryAdd oleh AddInventoryInfrastructure, ADR-0027). Interceptor IAuditable lalu menstempel
+// created_by=SYSTEM saat consumer membuat Stock/PutawayTask — tak ada AddHttpContextCurrentUser
+// yang meng-override karena host ini tak melayani request bisnis.
 
 var app = builder.Build();
 

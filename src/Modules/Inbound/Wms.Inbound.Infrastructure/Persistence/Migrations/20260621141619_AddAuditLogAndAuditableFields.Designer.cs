@@ -2,22 +2,25 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Wms.Inventory.Infrastructure.Persistence;
+using Wms.Inbound.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Wms.Inventory.Infrastructure.Persistence.Migrations
+namespace Wms.Inbound.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(InventoryDbContext))]
-    partial class InventoryDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(InboundDbContext))]
+    [Migration("20260621141619_AddAuditLogAndAuditableFields")]
+    partial class AddAuditLogAndAuditableFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("inventory")
+                .HasDefaultSchema("inbound")
                 .HasAnnotation("ProductVersion", "8.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -218,7 +221,7 @@ namespace Wms.Inventory.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox", "infrastructure");
                 });
 
-            modelBuilder.Entity("Wms.Inventory.Domain.PutawayTask", b =>
+            modelBuilder.Entity("Wms.Inbound.Domain.GoodsReceipt", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -239,58 +242,6 @@ namespace Wms.Inventory.Infrastructure.Persistence.Migrations
                     b.Property<string>("ModifiedBy")
                         .HasColumnType("text")
                         .HasColumnName("modified_by");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid>("StockId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("stock_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_putaway_tasks");
-
-                    b.ToTable("putaway_tasks", "inventory");
-                });
-
-            modelBuilder.Entity("Wms.Inventory.Domain.Stock", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTimeOffset>("ModifiedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("modified_at");
-
-                    b.Property<string>("ModifiedBy")
-                        .HasColumnType("text")
-                        .HasColumnName("modified_by");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer")
-                        .HasColumnName("quantity");
-
-                    b.Property<string>("Sku")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("sku");
-
-                    b.Property<Guid>("SourceGoodsReceiptId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("source_goods_receipt_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -305,9 +256,50 @@ namespace Wms.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnName("warehouse_id");
 
                     b.HasKey("Id")
-                        .HasName("pk_stocks");
+                        .HasName("pk_goods_receipts");
 
-                    b.ToTable("stocks", "inventory");
+                    b.ToTable("goods_receipts", "inbound");
+                });
+
+            modelBuilder.Entity("Wms.Inbound.Domain.GoodsReceipt", b =>
+                {
+                    b.OwnsMany("Wms.Inbound.Domain.GoodsReceiptLine", "Lines", b1 =>
+                        {
+                            b1.Property<int>("id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer")
+                                .HasColumnName("quantity");
+
+                            b1.Property<string>("Sku")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("sku");
+
+                            b1.Property<Guid>("goods_receipt_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("goods_receipt_id");
+
+                            b1.HasKey("id")
+                                .HasName("pk_gr_lines");
+
+                            b1.HasIndex("goods_receipt_id")
+                                .HasDatabaseName("ix_gr_lines_goods_receipt_id");
+
+                            b1.ToTable("gr_lines", "inbound");
+
+                            b1.WithOwner()
+                                .HasForeignKey("goods_receipt_id")
+                                .HasConstraintName("fk_gr_lines_goods_receipts_goods_receipt_id");
+                        });
+
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

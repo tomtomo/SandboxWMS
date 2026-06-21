@@ -30,7 +30,7 @@ Status: `planned | in-progress | blocked | done`.
 |---|---|---|---|---|
 | 02a | error-handling-mediatr-pipeline | `Result`→transport mapping + Validation/Transaction/Logging behavior + FF#7 | done | 01c |
 | 02b | event-contract-catalog-ddd-conventions | AsyncAPI catalog + contract-coverage FF#11 + tactical DDD + emission FF + DeadLetter | done | 02a |
-| 02c | audit-system-actor-observability-baseline | SYSTEM actor + out-of-band audit log + correlation-id + OTel baseline | planned | 02b |
+| 02c | audit-system-actor-observability-baseline | SYSTEM actor + out-of-band audit log + correlation-id + OTel baseline | done | 02b |
 
 ### Phase 03 — Complete Core Flow (LOCAL) · prinsip 3
 | # | slug | judul | status | depends-on |

@@ -9,8 +9,9 @@ namespace Wms.Inbound.Domain;
 // (emission policy ADR-0026). Discrepancy/two-axis (ADR-0013) menyusul di 03a.
 // How: Create memvalidasi → Result<GoodsReceipt>; Confirm transisi InProgress→
 // Confirmed lalu RaiseDomainEvent(GoodsReceiptConfirmed) — di-translate jadi
-// integration event GRConfirmedV1 + ditulis Outbox di Application (ADR-0005).
-public sealed class GoodsReceipt : AggregateRoot<GoodsReceiptId>
+// integration event GRConfirmedV1 + ditulis Outbox di Application (ADR-0005). IAuditable
+// via base AuditableAggregateRoot → created_by/modified_by terisi dari ICurrentUser (HTTP).
+public sealed class GoodsReceipt : AuditableAggregateRoot<GoodsReceiptId>
 {
     private readonly List<GoodsReceiptLine> _lines = new();
 

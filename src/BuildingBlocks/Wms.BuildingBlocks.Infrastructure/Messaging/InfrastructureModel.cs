@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Wms.BuildingBlocks.Application.Auditing;
 using Wms.BuildingBlocks.Application.Messaging;
 
 namespace Wms.BuildingBlocks.Infrastructure.Messaging;
 
 // What: shared infra-table mapping (ADR-0010 amendment — infra-table ownership)
-// Why: outbox/inbox/dead_letter dimiliki & dimigrasi oleh DbContext TIAP modul,
+// Why: outbox/inbox/dead_letter/audit_log dimiliki & dimigrasi oleh DbContext TIAP modul,
 // dipetakan lewat extension bersama ini ke schema "infrastructure" di dalam DB
 // per-service. "InfrastructureDbContext standalone DILARANG" (cegah kontaminasi PK
 // lintas-service, FF#10) — jadi tak ada DbContext sendiri; modul memanggilnya di
@@ -52,6 +53,24 @@ public static class InfrastructureModel
             b.Property(x => x.Traceparent).HasMaxLength(64);
             b.Property(x => x.Tracestate).HasMaxLength(512);
             b.HasIndex(x => x.EventId);                           // korelasi forensik per event
+        });
+
+        // What: tabel audit-log operasional (ADR-0022) — append-only, outcome-aware
+        // Why: ko-lokasi di schema "infrastructure" DB per-service, sama spt dead_letter —
+        // ditulis OUT-OF-BAND (koneksi sendiri) oleh AuditLogBehavior, survive rollback bisnis.
+        modelBuilder.Entity<AuditLogEntry>(b =>
+        {
+            b.ToTable("audit_log", Schema);
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).ValueGeneratedNever();          // Id app-assigned (per command)
+            b.Property(x => x.Actor).HasMaxLength(200).IsRequired();
+            b.Property(x => x.Action).HasMaxLength(200).IsRequired();
+            b.Property(x => x.AggregateType).HasMaxLength(200).IsRequired();
+            b.Property(x => x.AggregateId).HasMaxLength(200).IsRequired();
+            b.Property(x => x.ErrorCode).HasMaxLength(200);
+            b.Property(x => x.Traceparent).HasMaxLength(64);
+            // index pendukung query forensik "timeline per-aggregate", urut waktu kejadian
+            b.HasIndex(x => new { x.AggregateType, x.AggregateId, x.OccurredAt });
         });
 
         return modelBuilder;

@@ -1,6 +1,6 @@
 # Phase 02c — Audit Log + SYSTEM Actor + Observability Baseline
 
-**Status:** planned
+**Status:** done (2026-06-21)
 
 **Pre-conditions:**
 - **02b done:** `asyncapi.yaml` + FF #11 + emission behavioral test + consumer retry/DLQ baseline hijau; pipeline behavior baseline ada (slot `AuditLogBehavior` masih placeholder dari 02a).
@@ -48,3 +48,34 @@
 **Handoff notes:** **BUILDING-BLOCK TEMPLATE COMPLETE** — Inbound/Inventory kini memamerkan template penuh: `Result`, validation, transaction, audit out-of-band, SYSTEM actor, OTel baseline, emission FF, contract catalog. **Phase 03+ ekspansi hanya meng-INSTANSIASI template ini — JANGAN reinvent pattern** (Result/pipeline/audit/emission/contract sudah baku). Cross-cutting DEEP menyusul di Phase 07.
 
 **Touchpoint cert:** AZ-204 — Application Insights / OpenTelemetry *(baseline, pattern)* → X. PCD — Cloud Trace / Cloud Monitoring *(baseline, pattern)* → X.
+
+---
+
+## Completion (2026-06-21)
+
+**Terverifikasi:** `dotnet build Wms.sln` 0-warning/0-error; **62 test hijau** (naik dari 48: +12 unit [4 resolver invariant + 8 redaksi], +2 behavioral audit out-of-band; 1 assertion `created_by=SYSTEM` ditambah ke consumer test). 8 FF tetap hijau (nol regresi). 2 migration baru (Inbound/Inventory) ter-generate + tervalidasi via `InfrastructureMigrationTests` (`MigrateAsync` riil).
+
+**Dibangun (per task):**
+1. **SYSTEM actor** — port `ICurrentUser` (`BuildingBlocks.Application.Security`) + `CurrentUserResolver` **murni** (transport-free; `ClaimsPrincipal` = BCL) yang meng-key SYSTEM pada **HttpContext-is-null**, bukan `!IsAuthenticated`; adapter `HttpContextCurrentUser` (`BuildingBlocks.Web`) + Null-Object `SystemCurrentUser` (origin-mesin). Invariant **anon≠SYSTEM** ditegakkan `CurrentUserResolverTests`.
+2. **IAuditable** (`BuildingBlocks.Domain.Auditing`) + base `AuditableAggregateRoot<TId>` (private setter — enkapsulasi) + `AuditableEntityInterceptor` (EF SaveChanges, stempel via `entry.Property(...).CurrentValue`). `Stock`/`PutawayTask`/`GoodsReceipt` di-retrofit. Interceptor di-wire via `AddDbContext((sp,options) => AddInterceptors(...))`.
+3. **`IAuditLogStore` + `AuditLogEntry`** (Application, port-language; mirror `IDeadLetterStore`/`DeadLetterMessage`) + adapter `LocalAuditLogStore` (`Platform.Local`).
+4. **`AuditLogBehavior`** (MediatR) — opt-in `IAuditableCommand`, outcome-aware (`IsSuccess`+`ErrorCode`), **out-of-band via `IServiceScopeFactory.CreateScope()`** (DbContext segar → survive rollback), exception-path juga teraudit, best-effort (gagal audit di-log, tak menutupi hasil bisnis). PII-redaksi `AuditRedaction`.
+5. **Pipeline** — `AuditLogBehavior` di-sisip **OUTER ke Transaction** (Logging→Authorization→Validation→**AuditLog**→Transaction).
+6. **`audit_log`** di `infrastructure` via `AddInfrastructureTables` (owned DbContext modul, ADR-0010 — bukan standalone) + migration per modul.
+7. `ConfirmGoodsReceiptCommand` ditandai `IAuditableCommand` (`AggregateType="GoodsReceipt"`, `AggregateId`).
+8. **OTel baseline** di `AddServiceDefaults` (`Platform.Hosting`): logs (formatted+scopes) + metrics (ASP.NET/HttpClient/runtime) + traces (ASP.NET/HttpClient + ActivitySource app) + OTLP exporter (guard `OTEL_EXPORTER_OTLP_ENDPOINT`). **Correlation-id middleware** (`BuildingBlocks.Web`) → tag Activity + log-scope + echo header.
+9. Behavioral `AuditLogBehaviorTests` (rollback→audit tetap tertulis + control sukses) + invariant unit test.
+
+**Keputusan sadar (auditable):**
+- **`AuditLog` OUTER ke Transaction tapi INNER ke Validation** — phase mewajibkan "audit membungkus Transaction"; ditaruh INNER ke Validation karena command gagal-validasi short-circuit sebelum menyentuh aggregate (bukan "attempt" bisnis). Trigger tinjau-ulang: kalau perlu audit penolakan validasi/authz, geser ke luar Validation/Authorization.
+- **`CurrentUserResolver` murni di Application** (bukan `IHttpContextAccessor` di Application) — jaga Application nol-transport (ADR-0027); Web hanya men-feed `hasRequestContext`+`ClaimsPrincipal`.
+- **Default `ICurrentUser=SystemCurrentUser` di-TryAdd oleh `AddXxxInfrastructure`** — infra self-sufficient untuk origin-mesin (consumer/MigrationRunner/integration-test tak perlu mendaftarkan principal); host HTTP override dgn `HttpContextCurrentUser` (registrasi belakangan menang). Trade-off: host HTTP yang lupa override diam-diam jadi SYSTEM — diterima (sandbox; tertangkap di audit HTTP action pertama).
+- **Retrofit aggregate ke `IAuditable`** (bukan sekadar bikin interceptor) — overview mewajibkan field audit universal; sekaligus membuktikan SYSTEM actor end-to-end (`Stock.created_by=SYSTEM`). Biaya: 2 migration (audit_log + kolom audit, satu add per modul).
+- **OTel versi mixed** (core 1.16.0, instrumentation 1.15.x) — state normal OTel (instrumentation rilis di belakang core); diverifikasi dari NuGet, bukan tebakan.
+
+**Utang sadar / deferred:**
+1. **Aspire dashboard smoke** (traces + correlation-id) = **manual, belum dijalankan** — butuh `dotnet run --project src/AppHost/Wms.AppHost` interaktif + Docker. Build + DI + perilaku tervalidasi via test riil (Postgres) + provider MigrationRunner ter-build; dashboard visual diserahkan ke Tom.
+2. **Trace continuity Inbound→Inventory lintas-proses** TIDAK aktif di Local — rail 2-proses idle (cross-broker W3C = ADR-0024 → Phase 07b). Dashboard menampilkan trace **per-service** + correlation-id; bukan satu trace E2E lintas-broker.
+3. **PII-redaksi baseline** (match nama-field refleksi) — klasifikasi PII per-field lebih dalam (atribut/skema) di-defer (observability deep, Phase 07).
+4. **Audit read/query UI + retensi/arsip** = dorman (ADR-0022, deferred). **AuthZ enforce + warehouse-scoping** tetap deferred (ADR-0012/0027 → Phase 07a; `AuthorizationBehavior` pass-through, marker `TODO-AUTH`).
+5. **Audit-log store Inventory host** tak di-wire (`AddLocalAuditing` hanya di Inbound) — Inventory belum punya `IAuditableCommand` (consumer plain, bukan MediatR). Di-wire saat Inventory dapat command (Phase 03).

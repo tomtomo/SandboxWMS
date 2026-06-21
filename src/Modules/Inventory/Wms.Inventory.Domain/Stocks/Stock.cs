@@ -8,8 +8,9 @@ namespace Wms.Inventory.Domain;
 // location + transisi lifecycle (putaway→Available, allocate, pick) menyusul di 03b;
 // di sini cukup membuktikan event chain menghasilkan balance.
 // How: factory CreateOnHand memvalidasi → Result<Stock>; tak me-raise event (Inventory
-// pure consumer di 01c — belum emit StockAllocated, itu Phase 03).
-public sealed class Stock : AggregateRoot<StockId>
+// pure consumer di 01c — belum emit StockAllocated, itu Phase 03). IAuditable via base
+// AuditableAggregateRoot → created_by terisi SYSTEM saat consumer (origin mesin) membuatnya.
+public sealed class Stock : AuditableAggregateRoot<StockId>
 {
     public string WarehouseId { get; private set; } = null!;
 

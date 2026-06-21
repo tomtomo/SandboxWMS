@@ -7,8 +7,8 @@ namespace Wms.Inventory.Domain;
 // mereferensikan Stock by id (StockId) — bukan navigation — menjaga batas aggregate
 // (DDD: referensikan aggregate lain via identitas).
 // How: factory Assign membuat task state Assigned. suggestedDestination/assignedTo +
-// Completed menyusul di 03b (butuh Location master + putaway strategy).
-public sealed class PutawayTask : AggregateRoot<PutawayTaskId>
+// Completed menyusul di 03b (butuh Location master + putaway strategy). IAuditable via base.
+public sealed class PutawayTask : AuditableAggregateRoot<PutawayTaskId>
 {
     public StockId StockId { get; private set; } = null!;
 

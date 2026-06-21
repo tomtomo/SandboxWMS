@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inbound.Contracts;
 using Wms.Inventory.Application.Features.ConsumeGoodsReceiptConfirmed;
@@ -62,9 +63,13 @@ public sealed class ConsumerRetryDeadLetterTests(PostgresFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
         Assert.Empty(await db.Set<DeadLetterMessage>().ToListAsync());          // sukses → tak ada DLQ
-        Assert.Equal(1, await db.Stocks.CountAsync());                          // kerja consumer tetap jalan
         Assert.Equal(1, await db.PutawayTasks.CountAsync());
         Assert.Equal(1, await db.Set<InboxMessage>().CountAsync());            // diproses sekali (Inbox)
+
+        // SYSTEM actor (ADR-0027) + IAuditable interceptor: consumer = origin-mesin (tanpa HttpContext)
+        // → created_by ter-stempel SYSTEM saat Stock di-persist. Bukti template audit lengkap end-to-end.
+        var stock = await db.Stocks.SingleAsync();                              // kerja consumer tetap jalan
+        Assert.Equal(SystemActor.Id, stock.CreatedBy);
     }
 
     // inventory provider mirror host: infrastruktur modul + adapter Local (IDeadLetterStore).
