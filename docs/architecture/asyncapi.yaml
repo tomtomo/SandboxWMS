@@ -30,10 +30,10 @@ info:
     | Logical name | Emitter | Receiver(s) | Trigger (overview) | Consumed? | Realisasi |
     |---|---|---|---|---|---|
     | `inbound.gr_confirmed.v1` | Inbound | Inventory | `GoodsReceipt` Pending→Confirmed (§A4 Confirm) | ✅ ya | **aktif** (01c/02b) |
-    | `outbound.wave_released.v1` | Outbound | Inventory | `Wave` (none)→Active; SPV buat wave (§C2) | ✅ ya | placeholder → 03b/03c |
-    | `inventory.stock_allocated.v1` | Inventory | Outbound | `Stock` Available→Allocated; semua line wave teralokasi (§C3) | ✅ ya | placeholder → 03b |
-    | `outbound.shipment_dispatched.v1` | Outbound | Inventory | `Wave` Ready→Dispatched (§C6) | ✅ ya | placeholder → 03c |
-    | `outbound.picking_completed.v1` | Outbound | Inventory | `PickingTask` Assigned→Completed (§B/§C5, ADR-0028) | ✅ ya | placeholder → 03c |
+    | `outbound.wave_released.v1` | Outbound | Inventory | `Wave` (none)→Active; SPV buat wave (§C2) | ✅ ya | tipe+consumer **03b** · emitter 03c |
+    | `inventory.stock_allocated.v1` | Inventory | Outbound | `Stock` Available→Allocated; semua line wave teralokasi (§C3) | ✅ ya | **aktif** (03b; consumer 03c) |
+    | `outbound.shipment_dispatched.v1` | Outbound | Inventory | `Wave` Ready→Dispatched (§C6) | ✅ ya | tipe+consumer **03b** · emitter 03c |
+    | `outbound.picking_completed.v1` | Outbound | Inventory | `PickingTask` Assigned→Completed (§B/§C5, ADR-0028) | ✅ ya | tipe+consumer **03b** · emitter 03c |
     | `inventory.stock_low.v*` | Inventory | — (none) | Stock qty < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
     | `inventory.stock_near_expiry.v*` | Inventory | — (none) | Batch expiry < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
 
@@ -72,49 +72,49 @@ channels:
 
   outboundWaveReleased:
     address: outbound.wave_released.v1
-    title: Wave Released (placeholder)
+    title: Wave Released
     summary: Wave dirilis untuk diproses — picking & dispatch bersama.
     description: |
-      **Placeholder** — payload provisional (overview §C2), diratifikasi saat `WaveReleasedV1`
-      (`Wms.Outbound.Contracts`) lahir di Phase 03c. Dipancarkan Outbound saat `Wave`
-      (none)→Active; Inventory alokasi `Stock` Available→Allocated per FEFO.
+      Diratifikasi Phase 03b (consumer-first): `WaveReleasedV1` (`Wms.Outbound.Contracts`) sudah
+      lahir & dikonsumsi Inventory (alokasi `Stock` Available→Allocated per FEFO). Emitter Outbound
+      (`Wave` (none)→Active, §C2) menyusul Phase 03c memakai tipe yang sama.
     messages:
       waveReleased:
         $ref: '#/components/messages/WaveReleasedV1'
 
   inventoryStockAllocated:
     address: inventory.stock_allocated.v1
-    title: Stock Allocated (placeholder)
+    title: Stock Allocated
     summary: Stock direservasi untuk sebuah wave.
     description: |
-      **Placeholder** — payload provisional (overview §C3), diratifikasi saat `StockAllocatedV1`
-      (`Wms.Inventory.Contracts`) lahir di Phase 03b. Dipancarkan Inventory setelah semua line
-      wave teralokasi; Outbound buat `PickingTask` per entry `allocations[]`.
+      Diratifikasi Phase 03b: `StockAllocatedV1` (`Wms.Inventory.Contracts`) dipancarkan Inventory
+      setelah semua line wave teralokasi FEFO (§C3) — ditulis via Outbox. Consumer Outbound (buat
+      `PickingTask` per entry `allocations[]`) menyusul Phase 03c.
     messages:
       stockAllocated:
         $ref: '#/components/messages/StockAllocatedV1'
 
   outboundShipmentDispatched:
     address: outbound.shipment_dispatched.v1
-    title: Shipment Dispatched (placeholder)
+    title: Shipment Dispatched
     summary: Wave didispatch — truk keluar gudang.
     description: |
-      **Placeholder** — payload provisional (overview §C6), diratifikasi saat `ShipmentDispatchedV1`
-      (`Wms.Outbound.Contracts`) lahir di Phase 03c. Dipancarkan Outbound saat `Wave`
-      Ready→Dispatched; Inventory remove `Stock` Picked terikat `waveId`.
+      Diratifikasi Phase 03b (consumer-first): `ShipmentDispatchedV1` (`Wms.Outbound.Contracts`)
+      sudah lahir & dikonsumsi Inventory (remove `Stock` Picked terikat `waveId`). Emitter Outbound
+      (`Wave` Ready→Dispatched, §C6) menyusul Phase 03c.
     messages:
       shipmentDispatched:
         $ref: '#/components/messages/ShipmentDispatchedV1'
 
   outboundPickingCompleted:
     address: outbound.picking_completed.v1
-    title: Picking Completed (placeholder)
+    title: Picking Completed
     summary: Satu PickingTask selesai — stock pindah ke staging.
     description: |
-      **Placeholder** — event ke-5, **diputuskan di ADR-0028** untuk merealisasikan sinyal
-      overview §B (`PickingTask` Assigned→Completed → `Stock` Allocated→Picked). Payload
-      provisional, diratifikasi saat `PickingCompletedV1` (`Wms.Outbound.Contracts`) lahir di
-      Phase 03c. Inventory: transisi `Stock` Allocated→Picked + set `pickingTaskId`/staging.
+      Event ke-5, **diputuskan di ADR-0028** untuk merealisasikan sinyal overview §B (`PickingTask`
+      Assigned→Completed → `Stock` Allocated→Picked). Diratifikasi Phase 03b (consumer-first):
+      `PickingCompletedV1` (`Wms.Outbound.Contracts`) sudah lahir & dikonsumsi Inventory (transisi
+      `Stock` Allocated→Picked + set `pickingTaskId`/staging). Emitter Outbound menyusul Phase 03c.
     messages:
       pickingCompleted:
         $ref: '#/components/messages/PickingCompletedV1'
@@ -220,32 +220,32 @@ components:
 
     WaveReleasedV1:
       name: WaveReleasedV1
-      title: Wave Released (v1, placeholder)
-      summary: Provisional — diratifikasi saat tipe lahir di Phase 03c.
+      title: Wave Released (v1)
+      summary: Wave dirilis; lines minta alokasi stock (Phase 03b).
       contentType: application/json
       payload:
         $ref: '#/components/schemas/WaveReleasedV1Payload'
 
     StockAllocatedV1:
       name: StockAllocatedV1
-      title: Stock Allocated (v1, placeholder)
-      summary: Provisional — diratifikasi saat tipe lahir di Phase 03b.
+      title: Stock Allocated (v1)
+      summary: Hasil alokasi FEFO per line wave (Phase 03b).
       contentType: application/json
       payload:
         $ref: '#/components/schemas/StockAllocatedV1Payload'
 
     ShipmentDispatchedV1:
       name: ShipmentDispatchedV1
-      title: Shipment Dispatched (v1, placeholder)
-      summary: Provisional — diratifikasi saat tipe lahir di Phase 03c.
+      title: Shipment Dispatched (v1)
+      summary: Wave didispatch — Inventory remove Stock Picked (Phase 03b).
       contentType: application/json
       payload:
         $ref: '#/components/schemas/ShipmentDispatchedV1Payload'
 
     PickingCompletedV1:
       name: PickingCompletedV1
-      title: Picking Completed (v1, placeholder)
-      summary: Provisional (ADR-0028) — diratifikasi saat tipe lahir di Phase 03c.
+      title: Picking Completed (v1)
+      summary: PickingTask selesai — Stock Allocated→Picked (ADR-0028, Phase 03b).
       contentType: application/json
       payload:
         $ref: '#/components/schemas/PickingCompletedV1Payload'
@@ -309,11 +309,10 @@ components:
           type: string
           enum: [ReturnToSupplier, RejectExcess]
 
-    # --- Placeholder: shape provisional dari overview/ADR; ratifikasi di Phase 03 ---
+    # --- Diratifikasi Phase 03b: cermin tipe Wms.Outbound.Contracts.* & Wms.Inventory.Contracts.* ---
     WaveReleasedV1Payload:
       type: object
-      description: |
-        PROVISIONAL (overview §C2). Diratifikasi saat WaveReleasedV1 dibuat (Phase 03c).
+      additionalProperties: false
       required: [waveId, lines]
       properties:
         waveId:
@@ -321,17 +320,21 @@ components:
           format: uuid
         lines:
           type: array
+          description: Per (order, sku) — Inventory alokasi FEFO; orderId untuk korelasi downstream.
           items:
-            type: object
-            properties:
-              orderId: { type: string, format: uuid }
-              sku: { type: string }
-              qty: { type: integer, minimum: 1 }
+            $ref: '#/components/schemas/WaveLineV1'
+    WaveLineV1:
+      type: object
+      additionalProperties: false
+      required: [orderId, sku, qty]
+      properties:
+        orderId: { type: string, format: uuid }
+        sku: { type: string }
+        qty: { type: integer, minimum: 1 }
 
     StockAllocatedV1Payload:
       type: object
-      description: |
-        PROVISIONAL (overview §C3). Diratifikasi saat StockAllocatedV1 dibuat (Phase 03b).
+      additionalProperties: false
       required: [waveId, allocations]
       properties:
         waveId:
@@ -339,19 +342,25 @@ components:
           format: uuid
         allocations:
           type: array
+          description: Hasil alokasi per line — Stock terpilih (FEFO) untuk wave ini.
           items:
-            type: object
-            properties:
-              sku: { type: string }
-              locationId: { type: string }
-              batch: { type: string }
-              qty: { type: integer, minimum: 1 }
-              stockId: { type: string, format: uuid }
+            $ref: '#/components/schemas/StockAllocationV1'
+    StockAllocationV1:
+      type: object
+      additionalProperties: false
+      required: [sku, locationId, qty, stockId]
+      properties:
+        sku: { type: string }
+        locationId: { type: string }
+        batch:
+          type: [string, "null"]
+          description: Batch terpilih (null untuk produk tanpa batch-tracking).
+        qty: { type: integer, minimum: 1 }
+        stockId: { type: string, format: uuid }
 
     ShipmentDispatchedV1Payload:
       type: object
-      description: |
-        PROVISIONAL (overview §C6). Diratifikasi saat ShipmentDispatchedV1 dibuat (Phase 03c).
+      additionalProperties: false
       required: [waveId]
       properties:
         waveId:
@@ -360,8 +369,7 @@ components:
 
     PickingCompletedV1Payload:
       type: object
-      description: |
-        PROVISIONAL (ADR-0028). Diratifikasi saat PickingCompletedV1 dibuat (Phase 03c).
+      additionalProperties: false
       required: [waveId, pickingTaskId, stockId, sku, qty, stagingLocationId]
       properties:
         waveId:
@@ -376,7 +384,8 @@ components:
         sku:
           type: string
         batch:
-          type: string
+          type: [string, "null"]
+          description: Batch yang dipick (null untuk produk tanpa batch-tracking).
         qty:
           type: integer
           minimum: 1

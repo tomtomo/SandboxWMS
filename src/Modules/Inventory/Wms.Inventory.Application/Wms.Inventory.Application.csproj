@@ -2,9 +2,20 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Wms.Inventory.Domain\Wms.Inventory.Domain.csproj" />
-    <!-- Cross-context published language: consume GRConfirmedV1 (FF#3 allows *.Contracts only) -->
+    <!-- Own published language: emit StockAllocatedV1 -->
+    <ProjectReference Include="..\Wms.Inventory.Contracts\Wms.Inventory.Contracts.csproj" />
+    <!-- Cross-context published language consumed (FF#3 allows *.Contracts only):
+         GRConfirmedV1 (Inbound) + WaveReleased/PickingCompleted/ShipmentDispatched (Outbound) -->
     <ProjectReference Include="..\..\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CQRS pipeline for the CompletePutaway REST slice (MediatR free OSS line; FluentValidation). -->
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
   </ItemGroup>
 
   <PropertyGroup>

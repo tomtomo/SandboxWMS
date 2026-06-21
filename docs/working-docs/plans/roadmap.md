@@ -36,7 +36,7 @@ Status: `planned | in-progress | blocked | done`.
 | # | slug | judul | status | depends-on |
 |---|---|---|---|---|
 | 03a | inbound-goodsreceipt-discrepancy | `GoodsReceipt` full state machine + two-axis discrepancy + resolutions | done | 02c |
-| 03b | inventory-stock-lifecycle-allocation | Stock lifecycle + PutawayTask + `WaveReleased`/`ShipmentDispatched` consumer + FEFO | planned | 03a |
+| 03b | inventory-stock-lifecycle-allocation | Stock lifecycle + PutawayTask + `WaveReleased`/`ShipmentDispatched` consumer + FEFO | done | 03a |
 | 03c | outbound-wave-picking-dispatch | OutboundOrder + Wave + PickingTask + `StockAllocated` consumer; E2E s/d ShipmentDispatched | planned | 03b |
 
 ### Phase 04 — Supporting Services (LOCAL) · prinsip 3
