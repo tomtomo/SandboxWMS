@@ -10,4 +10,11 @@
     <ProjectReference Include="..\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
   </ItemGroup>
 
+  <!-- Grpc.Core.Api = abstraksi interceptor (Interceptor base, RpcException, StatusCode,
+       ServerCallContext) tanpa server runtime penuh — cukup utk ResultExceptionInterceptor.
+       Bukan vendor cloud SDK → FF#1 aman. -->
+  <ItemGroup>
+    <PackageReference Include="Grpc.Core.Api" />
+  </ItemGroup>
+
 </Project>

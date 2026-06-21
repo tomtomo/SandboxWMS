@@ -1,5 +1,6 @@
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.Inbound.Api;
+using Wms.Inbound.Application.DependencyInjection;
 using Wms.Inbound.Infrastructure.DependencyInjection;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
@@ -15,6 +16,7 @@ builder.AddServiceDefaults();
 var inboundConnection = builder.Configuration.GetConnectionString("inbounddb")
     ?? throw new InvalidOperationException("ConnectionStrings:inbounddb tidak diset (Aspire WithReference).");
 
+builder.Services.AddInboundApplication();
 builder.Services.AddInboundInfrastructure(inboundConnection);
 builder.Services.AddLocalMessaging();
 builder.Services.AddOutboxDispatcher();

@@ -1,6 +1,6 @@
 # Phase 02a — Error Handling + MediatR Pipeline Behaviors
 
-**Status:** planned
+**Status:** done (2026-06-21)
 
 **Pre-conditions:**
 - **01c done:** walking skeleton E2E hidup (Inbound→Inventory via Outbox/Inbox); handler `CreateGoodsReceipt`/`ConfirmGoodsReceipt` + Inventory consumer ada; 6 FF hijau.
@@ -41,5 +41,13 @@
 **Learning objective:** Result pattern & no-throw-for-business; RFC 7807 `ProblemDetails`; MediatR pipeline ordering (fail-fast authz/validation sebelum transaksi); Unit-of-Work rollback-on-failure (bukan hanya exception).
 
 **Handoff notes:** Pipeline baseline + `Result`→transport mapping terkunci di BuildingBlocks; slice 01c jadi contoh pemakaian template. **02b** menambah event-contract catalog (`asyncapi.yaml`) + FF #11 + emission policy + DeadLetter baseline di atas pipeline ini. Slot `AuthorizationBehavior` & `AuditLogBehavior` sengaja placeholder — jangan di-wire di sini.
+
+**State akhir (2026-06-21):** Vehicle pipeline = **MediatR 12.5.0** (rilis Apache-2.0 terakhir; dipilih sadar atas hand-rolled / 13-Community karena konsisten dgn ADR-0004/FF#2 + idiomatik). Dibangun: `ICommandBase`/`ICommand`/`ICommand<T>`/`IQuery<T>` → `IRequest<Result…>`; `IUnitOfWork.BeginTransactionAsync` + port `ITransaction` (adapter `EfUnitOfWork.EfTransaction`); 4 behavior (`Logging→Authorization→Validation→Transaction`) via `AddBuildingBlocksBehaviors`; `ErrorTransport` (SATU tabel: 5 `ErrorType`→HTTP+gRPC+title) + `ToProblemDetails` + `ResultExceptionInterceptor`(+`ResultFailureException`). Slice 01c → `IRequestHandler` (method `Handle`, `SaveChanges` tetap di handler, commit difinalisasi `TransactionBehavior`), `CreateGoodsReceiptValidator`, endpoint via `ISender`+`ToProblemDetails`, host `AddInboundApplication()`. **Test: 45 pass** (Architecture 7 = 6 FF + FF#7; BuildingBlocks unit 18; Inbound integ 5 incl. behavioral; Inventory E2E 2; domain 13).
+
+**Utang sadar / titik tinjau ulang:**
+1. `Microsoft.Extensions.Logging.Abstractions`→**10.0.8** & `Grpc.Core.Api`→**2.80.0** di `Directory.Packages.props` = LANTAI transitive Aspire/AppHost (CPM `CentralPackageTransitivePinningEnabled`); TFM runtime tetap net8.0 (ADR-0007 utuh). Tinjau saat AppHost/Aspire di-pin ulang.
+2. `ResultExceptionInterceptor` = template siap-pakai, **belum di-mount** (belum ada modul `*.Grpc`); mapping-nya tetap teruji via `ErrorTransport` unit test.
+3. **Inventory consumer tetap invoke langsung** (bukan via MediatR) — di luar scope command-pipeline 02a; pertimbangkan menyatukan ke `ISender` saat consumer pipeline diperdalam.
+4. **Rollback-after-tracking** diuji via unit test `TransactionBehavior` (commit/rollback/skip-query); integration test meng-cover jalur validation-short-circuit → ProblemDetails 400 + no-write. HTTP-level ProblemDetails (WebApplicationFactory) di-defer (mapping diuji unit-level via `ProblemHttpResult`).
 
 **Touchpoint cert:** AZ-204 — RFC 7807 `ProblemDetails` di ASP.NET Core *(pattern, light — no specific Azure service)* → X. PCD — *no cert touchpoint* (pure error-handling pattern).

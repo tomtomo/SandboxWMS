@@ -20,6 +20,7 @@
   <ItemGroup>
     <!-- SUT: rail (transitif via Inbound.Infrastructure) + adapter Local -->
     <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Infrastructure\Wms.Inbound.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Wms.BuildingBlocks.Web\Wms.BuildingBlocks.Web.csproj" />
     <ProjectReference Include="..\..\src\Platform\Wms.Platform.Local\Wms.Platform.Local.csproj" />
     <ProjectReference Include="..\Wms.TestSupport\Wms.TestSupport.csproj" />
   </ItemGroup>
