@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Wms.Inbound.Domain\Wms.Inbound.Domain.csproj" />
+    <ProjectReference Include="..\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
   </ItemGroup>
 

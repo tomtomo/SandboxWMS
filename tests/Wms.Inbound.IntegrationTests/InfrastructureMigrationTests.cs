@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inbound.Infrastructure.Persistence;
+using Wms.TestSupport;
 
 namespace Wms.Inbound.IntegrationTests;
 

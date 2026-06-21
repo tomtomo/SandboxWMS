@@ -1,14 +1,17 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
+using Xunit;
 
-namespace Wms.Inbound.IntegrationTests;
+namespace Wms.TestSupport;
 
 // What: shared Testcontainers Postgres fixture (reusable integration harness)
-// Why: integration test rail butuh Postgres NYATA (bukan in-memory) supaya perilaku
-// composite PK, tx, dan migration ter-uji sungguhan. Satu container per collection
-// menekan biaya start; tiap test minta database segar untuk isolasi.
+// Why: integration test butuh Postgres NYATA (bukan in-memory) supaya composite PK, tx,
+// dan migration ter-uji sungguhan. Di-extract ke project bersama begitu modul ke-2
+// (Inventory) + E2E ikut memakainya — hindari duplikasi container logic. Satu container
+// per collection menekan biaya start; tiap test minta database segar untuk isolasi.
 // How: IAsyncLifetime start/stop container; CreateDatabaseAsync bikin DB unik lalu
-// kembalikan connection string-nya.
+// kembalikan connection string-nya. (CollectionDefinition tetap per-assembly — xUnit
+// mengikat collection ke assembly-nya.)
 public sealed class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container =
@@ -36,11 +39,4 @@ public sealed class PostgresFixture : IAsyncLifetime
             Database = databaseName,
         }.ConnectionString;
     }
-}
-
-// What: xUnit collection — satu PostgresFixture dibagi semua test class di collection
-[CollectionDefinition(Name)]
-public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>
-{
-    public const string Name = "postgres";
 }

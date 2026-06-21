@@ -6,8 +6,9 @@ namespace Wms.Architecture.Tests;
 // What: Fitness Functions (Evolutionary Architecture — Ford et al.; ADR-0003)
 // Why: Dependency Rule + boundary microservices ditegakkan sebagai test yang FAIL
 // build — "konvensi yang tak di-test akan luntur". Inilah penjaga blueprint §4.
-// How: NetArchTest mem-parse metadata assembly (Mono.Cecil); tiap [Fact] = satu
-// aturan struktural. Assembly di-load by-name dari output test (via project reference).
+// How: NetArchTest mem-parse metadata assembly (Mono.Cecil); tiap [Fact] = satu aturan
+// struktural. Modul mendeklarasikan layer yang SUDAH ada (data-driven) supaya tumbuh
+// bertahap tanpa menyentuh tiap FF — Inventory belum punya Api/Contracts di Phase 01c.
 public class ArchitectureFitnessFunctions
 {
     private static Assembly Load(string name) => Assembly.Load(name);
@@ -20,17 +21,20 @@ public class ArchitectureFitnessFunctions
         Load("Wms.BuildingBlocks.Web"),
     ];
 
-    // satu modul di Phase 01 (Inbound); tambah modul baru di sini saat lahir.
-    private static readonly string[] ModuleNames = ["Inbound"];
+    // Single source: tiap modul → layer (project) yang sudah lahir. Tambah modul/layer di sini.
+    private static readonly Dictionary<string, string[]> ModuleLayers = new()
+    {
+        ["Inbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
+        ["Inventory"] = ["Domain", "Application", "Infrastructure"],
+    };
 
-    private static readonly Assembly[] ModuleAssemblies =
-    [
-        Load("Wms.Inbound.Domain"),
-        Load("Wms.Inbound.Application"),
-        Load("Wms.Inbound.Infrastructure"),
-        Load("Wms.Inbound.Api"),
-        Load("Wms.Inbound.Contracts"),
-    ];
+    // "internals" = layer selain Contracts; Contracts = published language yang BOLEH di-cross-ref.
+    private static readonly string[] InternalLayers = ["Domain", "Application", "Infrastructure", "Api"];
+
+    private static readonly string[] ModuleNames = [.. ModuleLayers.Keys];
+
+    private static Assembly[] ModuleAssemblies() =>
+        [.. ModuleLayers.SelectMany(m => m.Value.Select(layer => Load($"Wms.{m.Key}.{layer}")))];
 
     private static readonly Assembly[] PlatformAssemblies =
     [
@@ -47,7 +51,7 @@ public class ArchitectureFitnessFunctions
     [Fact]
     public void Ff1_modules_and_buildingblocks_have_no_cloud_sdk()
     {
-        foreach (var asm in BuildingBlocks.Concat(ModuleAssemblies))
+        foreach (var asm in BuildingBlocks.Concat(ModuleAssemblies()))
         {
             var result = Types.InAssembly(asm)
                 .ShouldNot().HaveDependencyOnAny(CloudSdkNamespaces)
@@ -62,7 +66,9 @@ public class ArchitectureFitnessFunctions
     public void Ff2_domain_has_no_framework_dependency()
     {
         string[] forbidden = ["Microsoft.EntityFrameworkCore", "MediatR", "Microsoft.AspNetCore"];
-        Assembly[] domains = [Load("Wms.BuildingBlocks.Domain"), Load("Wms.Inbound.Domain")];
+        var domains = ModuleNames
+            .Select(m => Load($"Wms.{m}.Domain"))
+            .Prepend(Load("Wms.BuildingBlocks.Domain"));
 
         foreach (var asm in domains)
         {
@@ -79,27 +85,21 @@ public class ArchitectureFitnessFunctions
     [Fact]
     public void Ff3_module_does_not_reference_other_modules_internals()
     {
-        foreach (var module in ModuleNames)
+        foreach (var (module, layers) in ModuleLayers)
         {
-            string[] otherInternals = ModuleNames
-                .Where(m => m != module)
-                .SelectMany(m => new[]
-                {
-                    $"Wms.{m}.Domain", $"Wms.{m}.Application",
-                    $"Wms.{m}.Infrastructure", $"Wms.{m}.Api",
-                })
+            string[] otherInternals = ModuleLayers
+                .Where(other => other.Key != module)
+                .SelectMany(other => InternalLayers
+                    .Where(layer => other.Value.Contains(layer))
+                    .Select(layer => $"Wms.{other.Key}.{layer}"))
                 .ToArray();
 
             if (otherInternals.Length == 0)
-                continue; // Phase 01: cuma 1 modul → guard siap, aktif saat modul ke-2 lahir.
+                continue; // modul tunggal → guard siap, aktif saat modul ke-2 lahir.
 
-            Assembly[] moduleAsms =
-            [
-                Load($"Wms.{module}.Domain"), Load($"Wms.{module}.Application"),
-                Load($"Wms.{module}.Infrastructure"), Load($"Wms.{module}.Api"),
-            ];
-            foreach (var asm in moduleAsms)
+            foreach (var layer in layers)
             {
+                var asm = Load($"Wms.{module}.{layer}");
                 var result = Types.InAssembly(asm)
                     .ShouldNot().HaveDependencyOnAny(otherInternals)
                     .GetResult();
@@ -130,18 +130,31 @@ public class ArchitectureFitnessFunctions
     [Fact]
     public void Ff5_intra_module_dependency_rule()
     {
-        foreach (var m in ModuleNames)
+        foreach (var (m, layers) in ModuleLayers)
         {
-            var domain = Types.InAssembly(Load($"Wms.{m}.Domain"))
-                .ShouldNot().HaveDependencyOnAny(
-                    $"Wms.{m}.Application", $"Wms.{m}.Infrastructure", $"Wms.{m}.Api")
-                .GetResult();
-            Assert.True(domain.IsSuccessful, Describe(Load($"Wms.{m}.Domain"), "langgar dependency rule", domain));
+            if (layers.Contains("Domain"))
+            {
+                string[] forbidden = [.. new[] { "Application", "Infrastructure", "Api" }
+                    .Where(layers.Contains).Select(l => $"Wms.{m}.{l}")];
+                if (forbidden.Length > 0)
+                {
+                    var domain = Types.InAssembly(Load($"Wms.{m}.Domain"))
+                        .ShouldNot().HaveDependencyOnAny(forbidden).GetResult();
+                    Assert.True(domain.IsSuccessful, Describe(Load($"Wms.{m}.Domain"), "langgar dependency rule", domain));
+                }
+            }
 
-            var application = Types.InAssembly(Load($"Wms.{m}.Application"))
-                .ShouldNot().HaveDependencyOnAny($"Wms.{m}.Infrastructure", $"Wms.{m}.Api")
-                .GetResult();
-            Assert.True(application.IsSuccessful, Describe(Load($"Wms.{m}.Application"), "langgar dependency rule", application));
+            if (layers.Contains("Application"))
+            {
+                string[] forbidden = [.. new[] { "Infrastructure", "Api" }
+                    .Where(layers.Contains).Select(l => $"Wms.{m}.{l}")];
+                if (forbidden.Length > 0)
+                {
+                    var application = Types.InAssembly(Load($"Wms.{m}.Application"))
+                        .ShouldNot().HaveDependencyOnAny(forbidden).GetResult();
+                    Assert.True(application.IsSuccessful, Describe(Load($"Wms.{m}.Application"), "langgar dependency rule", application));
+                }
+            }
         }
     }
 

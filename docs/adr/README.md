@@ -60,6 +60,7 @@ Index dari **Architecture Decision Record (ADR)** untuk sandbox microservices **
 | [0025](0025-cross-cutting-platform-ports.md) | Cross-cutting platform ports | Accepted | `IDelayedTaskQueue` + `ITelemetryStream`; taksonomi keandalan |
 | [0026](0026-tactical-ddd-conventions.md) | Tactical DDD conventions | Accepted | Identity / emission policy / VO ownership + behavioral FF |
 | [0027](0027-system-actor-convention.md) | SYSTEM actor convention | Accepted | `HttpContext==null`→SYSTEM; invariant anon≠SYSTEM |
+| [0029](0029-local-in-process-messaging-delivery.md) | Local in-proc messaging + deferred cross-process | Accepted | Walking-skeleton E2E via test 1-proses; lintas-proses → broker cloud (P05/06) |
 
 **ADR existing yang diperkaya blok `## Amendment — 2026-06-20`**: [0002](0002-tri-cloud-hexagonal.md) named ports · [0003](0003-clean-architecture-dependency-rule-fitness-functions.md) FF 7–11 + behavioral · [0004](0004-cqrs-vertical-slice.md) pipeline ordering · [0005](0005-event-driven-outbox.md) saga rule + composite inbox key + logical event id · [0007](0007-monorepo-with-polyrepo-path.md) CPM · [0010](0010-data-ownership-db-per-service.md) infra-table ownership + MigrationRunner + dead-letter + gRPC reader-delegation (FF #8) · [0011](0011-master-data-read-api-cache-aside.md) `ICacheStore` + event-invalidation note · [0012](0012-deferred-authorization-enforcement.md) `IsActive` filter + warehouse-scoping concept + offline-validation · [0014](0014-snapshot-vs-reference-master-data.md) targeted bypass · [0016](0016-refresh-token-rotation.md) password hashing + RS256 · [0017](0017-eventual-consistency-reporting-notification.md) projection atomicity.
 
@@ -79,6 +80,7 @@ Tier C: 0019 error-handling · 0020 resilience · 0021 s2s-auth · 0022 audit-lo
                         0023 asyncapi-catalog(+FF) · 0024 trace-context · 0025 platform-ports · 0026 ddd-conv · 0027 system-actor
 0023 contract-coverage FF ── menumpang harness ──▶ 0003      0021/0022/0027 ── dipakai ──▶ audit & s2s identity
 0028 picking-completed event ── realisasi sinyal overview §B ──▶ Stock Allocated→Picked; berlandas 0005·0010, dijaga 0023
+0029 local in-proc messaging ── E2E via test 1-proses; cross-process ──▶ broker cloud P05/06; berlandas 0005·0008·0010
 ```
 
 ## Legenda canon (ankor)

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- shared helper lib (bukan test project) — cegah `dotnet test` mencoba menjalankannya -->
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- shared integration-test harness: real Postgres via Testcontainers.
+         Npgsql (NpgsqlConnection di fixture) ditarik transitif via EF provider — versi
+         selaras dengan rail, tanpa pin standalone yang lepas dari EF provider. -->
+    <PackageReference Include="xunit" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+</Project>
