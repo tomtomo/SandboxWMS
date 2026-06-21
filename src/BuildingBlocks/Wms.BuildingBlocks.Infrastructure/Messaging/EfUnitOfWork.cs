@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Wms.BuildingBlocks.Application.Abstractions;
 
 namespace Wms.BuildingBlocks.Infrastructure.Messaging;
@@ -11,4 +12,24 @@ internal sealed class EfUnitOfWork(DbContext db) : IUnitOfWork
 {
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => db.SaveChangesAsync(cancellationToken);
+
+    // What: adapter transaksi eksplisit (Hexagonal port→adapter; ADR-0019)
+    // Why: TransactionBehavior mengontrol commit/rollback berdasarkan Result — EF
+    // IDbContextTransaction dibungkus ITransaction supaya Application tetap nol-EF.
+    public async Task<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        => new EfTransaction(await db.Database.BeginTransactionAsync(cancellationToken));
+
+    // What: pembungkus IDbContextTransaction → port ITransaction
+    // How: dispose tanpa commit = transaksi di-rollback oleh EF (jaring pengaman bila
+    // pipeline keluar tanpa Commit/Rollback eksplisit).
+    private sealed class EfTransaction(IDbContextTransaction transaction) : ITransaction
+    {
+        public Task CommitAsync(CancellationToken cancellationToken = default)
+            => transaction.CommitAsync(cancellationToken);
+
+        public Task RollbackAsync(CancellationToken cancellationToken = default)
+            => transaction.RollbackAsync(cancellationToken);
+
+        public ValueTask DisposeAsync() => transaction.DisposeAsync();
+    }
 }

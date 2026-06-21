@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MediatR;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Domain.Results;
@@ -8,20 +9,22 @@ using Wms.Inbound.Domain;
 
 namespace Wms.Inbound.Application.Features.ConfirmGoodsReceipt;
 
-// What: CQRS Command Handler (ADR-0004) + domain→integration event translation (ADR-0005)
+// What: CQRS — Command Handler (MediatR) + domain→integration event translation (ADR-0005)
 // Why: konfirmasi GR adalah fakta bisnis yang harus menyeberang ke Inventory. Handler
 // menerjemahkan domain event GoodsReceiptConfirmed (in-process) → integration event
 // GRConfirmedV1 (published language) lalu menulisnya ke Outbox — bukan publish langsung
-// (anti dual-write). Tipe domain tak pernah jadi wire-contract (ADR-0009).
-// How: load aggregate → Confirm() (raise domain event) → translate → Enqueue ke outbox
-// port → IUnitOfWork commit (state + outbox SATU transaksi).
+// (anti dual-write). Tipe domain tak pernah jadi wire-contract (ADR-0009). Result, no-throw
+// (ADR-0019); transaksi state+outbox di-commit atomic oleh TransactionBehavior.
+// How: load aggregate → Confirm() (raise domain event) → translate → Enqueue ke outbox port →
+// SaveChanges (state + outbox SATU transaksi; commit di-finalize TransactionBehavior).
 public sealed class ConfirmGoodsReceiptHandler(
     IGoodsReceiptRepository repository,
     IIntegrationEventOutbox outbox,
     IUnitOfWork unitOfWork)
+    : IRequestHandler<ConfirmGoodsReceiptCommand, Result>
 {
-    public async Task<Result> HandleAsync(
-        ConfirmGoodsReceiptCommand command, CancellationToken cancellationToken = default)
+    public async Task<Result> Handle(
+        ConfirmGoodsReceiptCommand command, CancellationToken cancellationToken)
     {
         var goodsReceipt = await repository.GetAsync(
             new GoodsReceiptId(command.GoodsReceiptId), cancellationToken);

@@ -2,8 +2,10 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using MediatR;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
+using Wms.Inbound.Application.DependencyInjection;
 using Wms.Inbound.Application.Features.ConfirmGoodsReceipt;
 using Wms.Inbound.Application.Features.CreateGoodsReceipt;
 using Wms.Inbound.Contracts;
@@ -82,6 +84,7 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
         {
             var inbound = new ServiceCollection()
                 .AddLogging()
+                .AddInboundApplication()
                 .AddInboundInfrastructure(await fixture.CreateDatabaseAsync())
                 .BuildServiceProvider();
 
@@ -104,11 +107,12 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
         public async Task<Guid> CreateGoodsReceiptAsync(string warehouseId, params (string Sku, int Qty)[] lines)
         {
             using var scope = _inbound.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<CreateGoodsReceiptHandler>();
+            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
             var command = new CreateGoodsReceiptCommand(
                 warehouseId, [.. lines.Select(line => new CreateGoodsReceiptLine(line.Sku, line.Qty))]);
 
-            var result = await handler.HandleAsync(command);
+            // lewat pipeline penuh (Logging→Validation→Transaction→Handler), bukan handler langsung
+            var result = await sender.Send(command);
             Assert.True(result.IsSuccess);
             return result.Value;
         }
@@ -116,8 +120,8 @@ public sealed class WalkingSkeletonChainTests(PostgresFixture fixture)
         public async Task ConfirmGoodsReceiptAsync(Guid goodsReceiptId)
         {
             using var scope = _inbound.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<ConfirmGoodsReceiptHandler>();
-            var result = await handler.HandleAsync(new ConfirmGoodsReceiptCommand(goodsReceiptId));
+            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+            var result = await sender.Send(new ConfirmGoodsReceiptCommand(goodsReceiptId));
             Assert.True(result.IsSuccess);
         }
 

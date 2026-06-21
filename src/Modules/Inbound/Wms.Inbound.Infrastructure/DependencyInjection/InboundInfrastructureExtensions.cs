@@ -2,8 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.Inbound.Application.Abstractions;
-using Wms.Inbound.Application.Features.ConfirmGoodsReceipt;
-using Wms.Inbound.Application.Features.CreateGoodsReceipt;
 using Wms.Inbound.Infrastructure.Persistence;
 
 namespace Wms.Inbound.Infrastructure.DependencyInjection;
@@ -28,11 +26,10 @@ public static class InboundInfrastructureExtensions
 
         services.AddScoped<DbContext>(sp => sp.GetRequiredService<InboundDbContext>());
 
-        // transactional messaging primitives (UoW + outbox writer + inbox guard) + slice handlers
+        // transactional messaging primitives (UoW + outbox writer + inbox guard) + repository.
+        // Handler/validator/pipeline = AddInboundApplication (MediatR mendaftarkan handler).
         services.AddTransactionalMessaging();
         services.AddScoped<IGoodsReceiptRepository, GoodsReceiptRepository>();
-        services.AddScoped<CreateGoodsReceiptHandler>();
-        services.AddScoped<ConfirmGoodsReceiptHandler>();
         return services;
     }
 }

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using NetArchTest.Rules;
 
 namespace Wms.Architecture.Tests;
@@ -172,6 +173,67 @@ public class ArchitectureFitnessFunctions
 
             Assert.True(result.IsSuccessful, Describe(asm, "depend ke Modules", result));
         }
+    }
+
+    // FF #7 — no business `throw` di *.Domain modul (no-throw-for-business, ADR-0019).
+    // CATATAN: "minimum viable grep" (ADR-0019, dilabeli jujur) — scan SUMBER untuk statement
+    // `throw` di luar komentar, BUKAN analisis Roslyn (itu roadmap). throw direservasi untuk
+    // programmer-error; nilai legit masa depan ditambah ke ProgrammerErrorAllowList sebagai
+    // keputusan SADAR, bukan diam-diam.
+    [Fact]
+    public void Ff7_module_domain_has_no_business_throw()
+    {
+        var violations = new List<string>();
+
+        foreach (var module in ModuleNames)
+        {
+            var domainDir = Path.Combine(RepoRoot(), "src", "Modules", module, $"Wms.{module}.Domain");
+            if (!Directory.Exists(domainDir))
+                continue;
+
+            foreach (var file in EnumerateDomainSources(domainDir))
+            {
+                var lines = File.ReadAllLines(file);
+                for (var line = 0; line < lines.Length; line++)
+                {
+                    var code = StripLineComment(lines[line]);
+                    if (!Regex.IsMatch(code, @"\bthrow\b"))
+                        continue;
+                    if (ProgrammerErrorAllowList.Any(code.Contains))
+                        continue;
+                    violations.Add($"{Path.GetFileName(file)}:{line + 1}: {lines[line].Trim()}");
+                }
+            }
+        }
+
+        Assert.True(violations.Count == 0,
+            "business `throw` di *.Domain — gunakan Result (ADR-0019):"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    // allow-list throw programmer-error yang sah di domain (kosong: domain murni Result saat ini)
+    private static readonly string[] ProgrammerErrorAllowList = [];
+
+    private static IEnumerable<string> EnumerateDomainSources(string directory) =>
+        Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                           && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
+
+    // buang komentar baris (// …) supaya kata "throw" di komentar tak ke-flag (minimum viable)
+    private static string StripLineComment(string line)
+    {
+        var index = line.IndexOf("//", StringComparison.Ordinal);
+        return index >= 0 ? line[..index] : line;
+    }
+
+    // naik dari base-dir test sampai ketemu Wms.sln (anchor repo root utk scan sumber)
+    private static string RepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Wms.sln")))
+            directory = directory.Parent;
+        return directory?.FullName
+            ?? throw new InvalidOperationException("Wms.sln tak ditemukan dari base dir test.");
     }
 
     private static string Describe(Assembly asm, string violation, TestResult result)

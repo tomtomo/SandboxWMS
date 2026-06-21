@@ -31,5 +31,19 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
     <!-- Integration tests: real Postgres via Testcontainers -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
+    <!-- Application pipeline (Phase 02a). MediatR 12.5.0 = versi Apache-2.0 TERAKHIR
+         (13.0.0+ dual-license komersial, Lucky Penny 2 Jul 2025); dipin sengaja di line
+         free OSS. FluentValidation utk ValidationBehavior; Grpc.Core.Api = abstraksi
+         interceptor sahaja (RpcException/StatusCode/ServerCallContext) — BUKAN cloud SDK,
+         FF#1 aman; server gRPC penuh menyusul saat *.Grpc lahir. -->
+    <PackageVersion Include="MediatR" Version="12.5.0" />
+    <PackageVersion Include="FluentValidation" Version="11.11.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
+    <!-- Versi = LANTAI transitive (CentralPackageTransitivePinningEnabled): AppHost/Aspire
+         menarik Grpc.Core.Api 2.80.0 & Logging.Abstractions 10.0.8 secara transitif, jadi
+         pin pusat tak boleh lebih rendah (else NU1109 downgrade). Keduanya abstraction lib,
+         net8.0-compatible — TFM runtime tetap .NET 8 LTS (ADR-0007). -->
+    <PackageVersion Include="Grpc.Core.Api" Version="2.80.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
   </ItemGroup>
 </Project>

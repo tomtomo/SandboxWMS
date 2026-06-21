@@ -4,6 +4,15 @@
     <ProjectReference Include="..\Wms.BuildingBlocks.Domain\Wms.BuildingBlocks.Domain.csproj" />
   </ItemGroup>
 
+  <!-- MediatR = mediator + IPipelineBehavior (CQRS pipeline kernel); FluentValidation =
+       IValidator utk ValidationBehavior; Logging.Abstractions = ILogger utk LoggingBehavior.
+       Nol cloud SDK → FF#1 aman; Application boleh kenal mediator (FF#2 hanya larang di Domain). -->
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
