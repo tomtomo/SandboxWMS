@@ -12,6 +12,7 @@
          Tambah modul lain di sini saat lahir. Nol cloud SDK (env-neutral). -->
     <ProjectReference Include="..\..\Modules\Inbound\Wms.Inbound.Infrastructure\Wms.Inbound.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Inventory\Wms.Inventory.Infrastructure\Wms.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Outbound\Wms.Outbound.Infrastructure\Wms.Outbound.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
