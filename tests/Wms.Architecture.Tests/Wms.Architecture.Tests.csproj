@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Assembly yang di-inspect fitness function (NetArchTest load via project reference) -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BuildingBlocks\Wms.BuildingBlocks.Domain\Wms.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Wms.BuildingBlocks.Infrastructure\Wms.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Wms.BuildingBlocks.Web\Wms.BuildingBlocks.Web.csproj" />
+    <ProjectReference Include="..\..\src\Platform\Wms.Platform.Hosting\Wms.Platform.Hosting.csproj" />
+    <ProjectReference Include="..\..\src\Platform\Wms.Platform.Local\Wms.Platform.Local.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Domain\Wms.Inbound.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Application\Wms.Inbound.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Infrastructure\Wms.Inbound.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Api\Wms.Inbound.Api.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- BuildingBlocks.Web = shared web kernel (REST untuk UI, ADR-0006): butuh tipe
+       ASP.NET Core tanpa jadi aplikasi tersendiri → FrameworkReference, bukan SDK.Web. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
+  </ItemGroup>
+
+</Project>

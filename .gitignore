@@ -1,0 +1,48 @@
+## .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+bld/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+## Test / coverage
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coverage.xml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+## Secrets / local env
+*.env
+secrets.json
+appsettings.*.local.json
+
+## Aspire / containers
+**/.aspire/
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Project meta (rulebook)
+docs/project-rules.md

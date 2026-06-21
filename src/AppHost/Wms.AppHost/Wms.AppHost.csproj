@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.6" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- AppHost = dev-orchestration tool (bukan service deployable) → boleh net10.0; services tetap net8.0 (ADR-0007). -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>12c53413-fa6a-4ca3-9947-fd067bfb1259</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Hosts\Local\Wms.Inbound.Host.Local\Wms.Inbound.Host.Local.csproj" />
+  </ItemGroup>
+
+</Project>

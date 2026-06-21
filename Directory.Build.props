@@ -1,0 +1,13 @@
+<Project>
+
+  <!-- Baseline untuk SEMUA project (ADR-0007: .NET 8 LTS baseline).
+       Project boleh override TargetFramework bila perlu (mis. AppHost = net8.0 Aspire 9). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>
