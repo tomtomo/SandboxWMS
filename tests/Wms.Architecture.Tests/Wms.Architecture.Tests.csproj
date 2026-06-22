@@ -12,6 +12,10 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="NetArchTest.Rules" />
     <PackageReference Include="YamlDotNet" />
+    <!-- negative-security behavioral test (Phase 04b, ADR-0016): craft token alg:none/HS256/wrong-aud
+         lalu validasi via WmsJwtBearer helper (alg-pin RS256). System.IdentityModel.Tokens.Jwt =
+         JwtSecurityTokenHandler + SigningCredentials (membawa Microsoft.IdentityModel.Tokens transitif). -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,6 +51,12 @@
     <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Api\Wms.MasterData.Api.csproj" />
     <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Contracts\Wms.MasterData.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\MasterData\Wms.MasterData.Grpc\Wms.MasterData.Grpc.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Auth\Wms.Auth.Domain\Wms.Auth.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Auth\Wms.Auth.Application\Wms.Auth.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Auth\Wms.Auth.Infrastructure\Wms.Auth.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Auth\Wms.Auth.Api\Wms.Auth.Api.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Auth\Wms.Auth.Contracts\Wms.Auth.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Auth\Wms.Auth.Grpc\Wms.Auth.Grpc.csproj" />
   </ItemGroup>
 
 </Project>

@@ -36,6 +36,12 @@ builder.Services.AddOutboxDispatcher();
 builder.Services.AddHttpContextCurrentUser();
 builder.Services.AddLocalAuditing();
 
+// Phase 04b: validasi user JWT OFFLINE (ADR-0016 alg-pin RS256) — public key via ISecretProvider (env
+// AppHost / ephemeral Local). Token valid → HttpContext.User terisi → ICurrentUser identitas NYATA (ganti
+// SYSTEM/anonymous) → audit created_by nyata. authZ tetap deferred (ADR-0012, tanpa [Authorize]).
+builder.Services.AddLocalSecretProvider();
+builder.Services.AddWmsJwtBearer();
+
 // Phase 03a: object storage Local (port IObjectStore) untuk byte GRAttachment (ADR-0015); root
 // path = config override atau folder di bawah content root. JSON string-enum agar REST menerima
 // LineStatus/DiscrepancyType/ResolutionAction sebagai nama (bukan angka).
@@ -67,6 +73,9 @@ var app = builder.Build();
 
 // correlation-id sedini mungkin → tiap log/trace/audit request berbagi korelator (ADR-0024 baseline)
 app.UseCorrelationId();
+
+// authentication: validasi bearer offline → isi principal sebelum endpoint/handler (ICurrentUser nyata, 04b)
+app.UseAuthentication();
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => "Wms.Inbound.Host.Local — Phase 02c (GoodsReceipt + Outbox + audit + OTel)");

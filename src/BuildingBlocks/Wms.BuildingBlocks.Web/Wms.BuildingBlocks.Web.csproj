@@ -17,4 +17,11 @@
     <PackageReference Include="Grpc.Core.Api" />
   </ItemGroup>
 
+  <!-- JWT bearer offline validation (Phase 04b, ADR-0016): shared helper alg-pinned dipakai SEMUA host.
+       JwtBearer = package terpisah (bukan shared framework); membawa Microsoft.IdentityModel.* (7.1.2)
+       transitif untuk TokenValidationParameters/RsaSecurityKey. Abstraction crypto → FF#1 aman. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+  </ItemGroup>
+
 </Project>

@@ -77,5 +77,17 @@
          dibawa Microsoft.Extensions.Http.Resilience 10.7.0 (AddStandardResilienceHandler). -->
     <PackageVersion Include="Polly.Core" Version="8.7.0" />
     <PackageVersion Include="Polly.Extensions" Version="8.7.0" />
+    <!-- Auth (Phase 04b, ADR-0016/0012/0021): JWT RS256 + Argon2id + refresh rotation.
+         Argon2id KDF = Konscious (pure-managed, OWASP Password Storage) di Platform.Local adapter
+         IPasswordHasher — bukan cloud SDK (FF#1 aman). JwtBearer 8.0.15 = lock-step AspNetCore 8.0.15
+         (Mvc.Testing existing); validasi offline alg-pinned di BuildingBlocks.Web (semua host).
+         System.IdentityModel.Tokens.Jwt + Microsoft.IdentityModel.Tokens = 7.1.2 → MATCH closure
+         transitive JwtBearer 8.0.15 (depends OpenIdConnect 7.1.2) supaya tak ada NU1109 downgrade.
+         Dipakai: Auth.Infrastructure (RS256 sign), BuildingBlocks.Web (offline validate), Architecture.Tests
+         (negative-security craft+validate token). Microsoft.IdentityModel.* = abstraction crypto, FF#1 aman. -->
+    <PackageVersion Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.15" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
+    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="7.1.2" />
   </ItemGroup>
 </Project>

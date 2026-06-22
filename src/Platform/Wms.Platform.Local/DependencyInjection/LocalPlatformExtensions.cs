@@ -63,4 +63,23 @@ public static class LocalPlatformExtensions
         services.AddSingleton<IServiceTokenProvider, LocalServiceTokenProvider>();
         return services;
     }
+
+    // What: composition adapter password-hasher Local (port IPasswordHasher → Argon2id; ADR-0016)
+    // Why: jalur Login/seed butuh KDF; Local = Argon2id (Konscious). Singleton (precompute Sentinel sekali).
+    // Cloud bisa swap adapter berbeda tanpa sentuh core (Hexagonal). Dipakai 04b (Auth).
+    public static IServiceCollection AddLocalPasswordHasher(this IServiceCollection services)
+    {
+        services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
+        return services;
+    }
+
+    // What: composition adapter secret-provider Local (port ISecretProvider → env + ephemeral; ADR-0016)
+    // Why: RS256 signing/public key di-resolve via port; Local = env var (`Secrets__{name}`) atau dev
+    // keypair ephemeral. Singleton (keypair ephemeral hidup selama proses). Cloud (Key Vault/Secret Manager)
+    // swap tanpa sentuh core/issuer. Dipakai 04b (Auth issuer + host JWT validation wiring).
+    public static IServiceCollection AddLocalSecretProvider(this IServiceCollection services)
+    {
+        services.AddSingleton<ISecretProvider, LocalSecretProvider>();
+        return services;
+    }
 }

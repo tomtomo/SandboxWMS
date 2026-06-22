@@ -31,6 +31,12 @@ builder.Services.AddLocalCaching();           // ICacheStore untuk cache-aside r
 builder.Services.AddHttpContextCurrentUser(); // identitas operator REST CRUD → IAuditable (created_by)
 builder.Services.AddLocalAuditing();
 
+// Phase 04b: validasi user JWT OFFLINE (ADR-0016 alg-pin RS256) — public key via ISecretProvider (env
+// AppHost / ephemeral Local). Token valid → HttpContext.User terisi → ICurrentUser identitas NYATA (ganti
+// anonymous) → audit created_by nyata utk REST CRUD. authZ tetap deferred (ADR-0012, tanpa [Authorize]).
+builder.Services.AddLocalSecretProvider();
+builder.Services.AddWmsJwtBearer();
+
 // gRPC server + interceptor Result→RpcException (ADR-0019: status mapping tak tersebar di service)
 builder.Services.AddGrpc(options => options.Interceptors.Add<ResultExceptionInterceptor>());
 
@@ -38,6 +44,9 @@ var app = builder.Build();
 
 // correlation-id sedini mungkin → tiap log/trace/audit berbagi korelator (ADR-0024 baseline)
 app.UseCorrelationId();
+
+// authentication: validasi bearer offline → isi principal sebelum endpoint/handler (ICurrentUser nyata, 04b)
+app.UseAuthentication();
 
 app.MapGrpcService<MasterDataReadService>();
 app.MapMasterDataEndpoints();

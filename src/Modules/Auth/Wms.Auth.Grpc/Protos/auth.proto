@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+option csharp_namespace = "Wms.Auth.Grpc";
+
+package auth.v1;
+
+// What: gRPC read-API Auth (ADR-0006 gRPC internal; ADR-0011 read-API + cache-aside)
+// Why: kontrak SINKRON antar-service untuk konsumen (mis. Notification 04d → recipient detail) mengambil
+// User/Role/Permission by-id. Read-only & jarang berubah → di-cache cache-aside di server. GetUser =
+// claim-source: HANYA role AKTIF menyumbang permission (IsActive filter, ADR-0012). NOT-FOUND dipetakan
+// ke gRPC status NotFound (ResultExceptionInterceptor server). .proto ber-versi terpisah dari event (ADR-0009).
+service AuthReadApi {
+  rpc GetUser (GetUserRequest) returns (UserReply);
+  rpc GetRole (GetRoleRequest) returns (RoleReply);
+  rpc GetPermission (GetPermissionRequest) returns (PermissionReply);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message UserReply {
+  string user_id = 1;
+  string username = 2;
+  string email = 3;
+  string status = 4;
+  repeated string role_codes = 5;
+  repeated string permission_codes = 6;
+  repeated string warehouse_ids = 7;
+}
+
+message GetRoleRequest {
+  string role_id = 1;
+}
+
+message RoleReply {
+  string role_id = 1;
+  string code = 2;
+  string name = 3;
+  repeated string permission_codes = 4;
+}
+
+message GetPermissionRequest {
+  string code = 1;
+}
+
+message PermissionReply {
+  string code = 1;
+  string description = 2;
+}
