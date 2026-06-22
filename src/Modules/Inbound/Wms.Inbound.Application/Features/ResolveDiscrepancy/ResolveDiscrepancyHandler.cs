@@ -12,7 +12,7 @@ public sealed class ResolveDiscrepancyHandler(IGoodsReceiptRepository repository
 {
     public async Task<Result> Handle(ResolveDiscrepancyCommand command, CancellationToken cancellationToken)
     {
-        var goodsReceipt = await repository.GetAsync(
+        var goodsReceipt = await repository.GetByIdAsync(
             new GoodsReceiptId(command.GoodsReceiptId), cancellationToken);
         if (goodsReceipt is null)
             return Result.Failure(GoodsReceiptErrors.NotFound);

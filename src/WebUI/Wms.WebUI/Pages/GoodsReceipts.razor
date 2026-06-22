@@ -37,9 +37,9 @@ else
                 <div class="d-flex align-center">
                     <MudText Typo="Typo.h6">GR List</MudText>
                     <MudSpacer />
-                    <MudButton StartIcon="@Icons.Material.Filled.Refresh" OnClick="Load" Size="Size.Small">Refresh</MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.Refresh" OnClick="Refresh" Size="Size.Small">Refresh</MudButton>
                 </div>
-                <MudTable Items="_rows" Hover="true" Dense="true" Class="mt-2">
+                <MudTable Items="_result.Items" Hover="true" Dense="true" Class="mt-2">
                     <HeaderContent>
                         <MudTh>GR</MudTh>
                         <MudTh>Warehouse</MudTh>
@@ -57,17 +57,27 @@ else
                         <MudTd DataLabel="Created">@context.CreatedAt.LocalDateTime.ToString("g")</MudTd>
                     </RowTemplate>
                 </MudTable>
+                <div class="d-flex align-center mt-2">
+                    <MudText Typo="Typo.caption">Total: @_result.TotalCount</MudText>
+                    <MudSpacer />
+                    <MudButton Disabled="@(!_result.HasPreviousPage)" OnClick="PrevPage" Size="Size.Small">Prev</MudButton>
+                    <MudText Typo="Typo.caption" Class="mx-2">Page @_result.Page</MudText>
+                    <MudButton Disabled="@(!_result.HasNextPage)" OnClick="NextPage" Size="Size.Small">Next</MudButton>
+                </div>
             </MudPaper>
         </MudItem>
     </MudGrid>
 }
 
 @code {
+    private const int PageSize = 20;
+
     private string _warehouseId = "WH1";
     private string _poRef = string.Empty;
     private string _supplierId = string.Empty;
     private readonly List<LineInput> _lines = [new LineInput { Sku = "SKU1", ExpectedQty = 10 }];
-    private IReadOnlyList<GoodsReceiptListRow> _rows = [];
+    private PagedResultDto<GoodsReceiptListRow> _result = new([], 1, PageSize, 0);
+    private int _page = 1;
     private bool _busy;
 
     protected override async Task OnInitializedAsync() => await Load();
@@ -78,7 +88,29 @@ else
     {
         if (!TokenStore.IsAuthenticated)
             return;
-        _rows = await Inbound.ListAsync();
+        _result = await Inbound.ListAsync(_page, PageSize);
+    }
+
+    private async Task Refresh()
+    {
+        _page = 1;
+        await Load();
+    }
+
+    private async Task PrevPage()
+    {
+        if (_page <= 1)
+            return;
+        _page--;
+        await Load();
+    }
+
+    private async Task NextPage()
+    {
+        if (!_result.HasNextPage)
+            return;
+        _page++;
+        await Load();
     }
 
     private async Task Create()
@@ -96,7 +128,10 @@ else
         _busy = false;
         Snackbar.Add(message, ok ? Severity.Success : Severity.Error);
         if (ok)
+        {
+            _page = 1;
             await Load();
+        }
     }
 
     private static string ShortId(Guid id) => id.ToString()[..8];

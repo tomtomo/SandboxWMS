@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wms.BuildingBlocks.Application.Pagination;
 using Wms.Inbound.Application.Abstractions;
 using Wms.Inbound.Application.ReadModels;
 
@@ -6,22 +7,33 @@ namespace Wms.Inbound.Infrastructure.Persistence;
 
 // What: Read-Port impl EF Core (reader-delegation; ADR-0011) — realisasi IGoodsReceiptReader
 // Why: endpoint REST (*.Api) tak menyentuh DbContext (FF#8) — query list dilayani di sini, AsNoTracking
-// (read murni). Materialize-then-map (bukan projection EF): Status enum→string & owned ExpectedLines.Count
-// dihitung in-memory, bebas batasan translasi owned-collection/strongly-typed id (pola MasterDataReader).
+// (read murni), paginated (Skip/Take) + TotalCount (CountAsync) atas FILTER yang SAMA. Materialize-then-map
+// (Status enum→string & owned ExpectedLines.Count in-memory, bebas batasan translasi owned/strongly-typed id).
+// How: clamp page/pageSize (guard) → Count → OrderBy CreatedAt desc → Skip/Take → map → PagedResult.
 internal sealed class GoodsReceiptReader(InboundDbContext db) : IGoodsReceiptReader
 {
-    public async Task<IReadOnlyList<GoodsReceiptListItem>> ListAsync(
-        string? warehouseId = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<GoodsReceiptListItem>> ListAsync(
+        string? warehouseId = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
+        var safePage = Math.Max(1, page);
+        var safeSize = Math.Clamp(pageSize, 1, 100);
+
         var query = db.GoodsReceipts.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(warehouseId))
             query = query.Where(goodsReceipt => goodsReceipt.WarehouseId == warehouseId);
 
+        var totalCount = await query.CountAsync(cancellationToken);
+
         var goodsReceipts = await query
             .OrderByDescending(goodsReceipt => goodsReceipt.CreatedAt)
+            .Skip((safePage - 1) * safeSize)
+            .Take(safeSize)
             .ToListAsync(cancellationToken);
 
-        return goodsReceipts
+        var items = goodsReceipts
             .Select(goodsReceipt => new GoodsReceiptListItem(
                 goodsReceipt.Id.Value,
                 goodsReceipt.WarehouseId,
@@ -31,5 +43,7 @@ internal sealed class GoodsReceiptReader(InboundDbContext db) : IGoodsReceiptRea
                 goodsReceipt.ExpectedLines.Count,
                 goodsReceipt.CreatedAt))
             .ToList();
+
+        return new PagedResult<GoodsReceiptListItem>(items, safePage, safeSize, totalCount);
     }
 }
