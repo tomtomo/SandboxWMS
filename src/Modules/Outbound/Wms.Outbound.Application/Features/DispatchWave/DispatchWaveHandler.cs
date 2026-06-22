@@ -25,7 +25,7 @@ public sealed class DispatchWaveHandler(
 {
     public async Task<Result> Handle(DispatchWaveCommand command, CancellationToken cancellationToken)
     {
-        var wave = await waveRepository.GetAsync(new WaveId(command.WaveId), cancellationToken);
+        var wave = await waveRepository.GetByIdAsync(new WaveId(command.WaveId), cancellationToken);
         if (wave is null)
             return Result.Failure(WaveErrors.NotFound);
 

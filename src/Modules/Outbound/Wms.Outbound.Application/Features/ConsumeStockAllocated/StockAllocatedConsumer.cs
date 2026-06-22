@@ -30,7 +30,7 @@ public sealed class StockAllocatedConsumer(
         if (await inbox.HasProcessedAsync(eventId, HandlerType, cancellationToken))
             return Result.Success();
 
-        var wave = await waveRepository.GetAsync(new WaveId(message.WaveId), cancellationToken);
+        var wave = await waveRepository.GetByIdAsync(new WaveId(message.WaveId), cancellationToken);
         if (wave is null)
             return Result.Failure(WaveErrors.NotFound);
 

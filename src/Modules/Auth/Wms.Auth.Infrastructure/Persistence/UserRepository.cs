@@ -1,23 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Wms.Auth.Application.Abstractions;
 using Wms.Auth.Domain;
+using Wms.BuildingBlocks.Infrastructure.Persistence;
 
 namespace Wms.Auth.Infrastructure.Persistence;
 
 // What: Repository Pattern impl (EF Core) untuk User (DDD; ADR-0010)
-// How: TANPA global filter — jalur Login memuat user Disabled/Locked untuk error seragam &
-// RecordFailedLogin (status dicek di handler). GetByUsername/GetById return aggregate TRACKED.
-internal sealed class UserRepository(AuthDbContext db) : IUserRepository
+// Why: Add/GetById dari EfRepository (hapus boilerplate). GetByUsername = query domain jalur Login. User
+// TANPA global filter (memuat Disabled/Locked untuk error seragam & RecordFailedLogin; status dicek handler).
+internal sealed class UserRepository(AuthDbContext db)
+    : EfRepository<User, UserId, AuthDbContext>(db), IUserRepository
 {
-    public Task AddAsync(User user, CancellationToken cancellationToken = default)
-    {
-        db.Users.Add(user);
-        return Task.CompletedTask;
-    }
-
     public Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
-        => db.Users.FirstOrDefaultAsync(user => user.Username == username, cancellationToken);
-
-    public Task<User?> GetByIdAsync(UserId id, CancellationToken cancellationToken = default)
-        => db.Users.FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
+        => DbSet.FirstOrDefaultAsync(user => user.Username == username, cancellationToken);
 }

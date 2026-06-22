@@ -14,7 +14,7 @@ public sealed class DeactivateProductHandler(IProductRepository repository, IUni
 {
     public async Task<Result> Handle(DeactivateProductCommand command, CancellationToken cancellationToken)
     {
-        var product = await repository.GetAsync(new ProductId(command.Sku), cancellationToken);
+        var product = await repository.GetByIdAsync(new ProductId(command.Sku), cancellationToken);
         if (product is null)
             return Result.Failure(ProductErrors.NotFound);
 

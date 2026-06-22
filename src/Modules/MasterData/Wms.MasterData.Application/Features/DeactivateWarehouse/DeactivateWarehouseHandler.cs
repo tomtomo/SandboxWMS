@@ -12,7 +12,7 @@ public sealed class DeactivateWarehouseHandler(IWarehouseRepository repository, 
 {
     public async Task<Result> Handle(DeactivateWarehouseCommand command, CancellationToken cancellationToken)
     {
-        var warehouse = await repository.GetAsync(new WarehouseId(command.WarehouseId), cancellationToken);
+        var warehouse = await repository.GetByIdAsync(new WarehouseId(command.WarehouseId), cancellationToken);
         if (warehouse is null)
             return Result.Failure(WarehouseErrors.NotFound);
 

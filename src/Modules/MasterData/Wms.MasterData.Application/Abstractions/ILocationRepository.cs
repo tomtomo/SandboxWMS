@@ -1,11 +1,9 @@
+using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.MasterData.Domain;
 
 namespace Wms.MasterData.Application.Abstractions;
 
-// What: Repository Pattern (DDD) — port write-side Location (impl EF di Infrastructure)
-public interface ILocationRepository
+// What: Repository Pattern (DDD) — port write-side Location; Add/GetById dari IRepository
+public interface ILocationRepository : IRepository<Location, LocationId>
 {
-    Task AddAsync(Location location, CancellationToken cancellationToken = default);
-
-    Task<Location?> GetAsync(LocationId id, CancellationToken cancellationToken = default);
 }

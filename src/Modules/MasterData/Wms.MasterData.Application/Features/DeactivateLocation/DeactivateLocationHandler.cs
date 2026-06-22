@@ -12,7 +12,7 @@ public sealed class DeactivateLocationHandler(ILocationRepository repository, IU
 {
     public async Task<Result> Handle(DeactivateLocationCommand command, CancellationToken cancellationToken)
     {
-        var location = await repository.GetAsync(new LocationId(command.LocationId), cancellationToken);
+        var location = await repository.GetByIdAsync(new LocationId(command.LocationId), cancellationToken);
         if (location is null)
             return Result.Failure(LocationErrors.NotFound);
 

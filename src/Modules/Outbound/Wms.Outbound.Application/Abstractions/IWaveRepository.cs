@@ -1,12 +1,9 @@
+using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.Outbound.Domain;
 
 namespace Wms.Outbound.Application.Abstractions;
 
-// What: Repository Pattern (DDD) — port Wave (impl EF di Infrastructure)
-public interface IWaveRepository
+// What: Repository Pattern (DDD) — port Wave; Add/GetById dari IRepository
+public interface IWaveRepository : IRepository<Wave, WaveId>
 {
-    Task AddAsync(Wave wave, CancellationToken cancellationToken = default);
-
-    // What: ambil satu Wave by id (StockAllocated consumer attach tasks; CompletePicking/DispatchWave)
-    Task<Wave?> GetAsync(WaveId id, CancellationToken cancellationToken = default);
 }

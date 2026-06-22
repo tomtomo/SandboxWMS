@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Wms.BuildingBlocks.Application.Pagination;
 using Wms.BuildingBlocks.Web.ErrorHandling;
 using Wms.Notification.Domain;
 using Wms.Notification.Persistence;
@@ -11,8 +12,8 @@ namespace Wms.Notification.Endpoints;
 // What: REST endpoints Notification (CQRS read-side + command tipis; ADR-0006/0017/0019)
 // Why: (a) seed subscription (admin/WebUI); (b) in-app inbox query (WebUI 04e baca delivery InApp);
 // (c) mark-as-read (overview §G, hanya InApp). Module COLLAPSED (bukan layer Api terpisah) → baca/tulis
-// NotificationDbContext di sini benar (FF#8 tak berlaku). Result→HTTP via ToProblemDetails (ADR-0019).
-// AuthZ deferred (ADR-0012) → penanda TODO-AUTH; enforcement + permission catalog di 07a.
+// NotificationDbContext di sini benar (FF#8 tak berlaku). Inbox paginated (PagedResult) — cegah unbounded
+// result set. Result→HTTP via ToProblemDetails (ADR-0019). AuthZ deferred (ADR-0012) → TODO-AUTH; 07a.
 public static class NotificationEndpoints
 {
     public static IEndpointRouteBuilder MapNotificationEndpoints(this IEndpointRouteBuilder app)
@@ -33,20 +34,28 @@ public static class NotificationEndpoints
                 $"/notifications/subscriptions/{result.Value.Id.Value}", new { id = result.Value.Id.Value });
         });
 
-        // TODO-AUTH: Notification.ViewInbox — in-app inbox per user (Sent/Read), terbaru dulu
+        // TODO-AUTH: Notification.ViewInbox — in-app inbox per user (Sent/Read), terbaru dulu, paginated
         app.MapGet("/notifications/inbox", async (
-            string userId, NotificationDbContext db, CancellationToken cancellationToken) =>
+            string userId, NotificationDbContext db,
+            int? page, int? pageSize, CancellationToken cancellationToken) =>
         {
-            var rows = await db.Deliveries.AsNoTracking()
+            var safePage = Math.Max(1, page ?? 1);
+            var safeSize = Math.Clamp(pageSize ?? 20, 1, 100);
+
+            var query = db.Deliveries.AsNoTracking()
                 .Where(delivery => delivery.UserId == userId
                     && delivery.Channel == NotificationChannel.InApp
-                    && (delivery.Status == DeliveryStatus.Sent || delivery.Status == DeliveryStatus.Read))
+                    && (delivery.Status == DeliveryStatus.Sent || delivery.Status == DeliveryStatus.Read));
+
+            var total = await query.CountAsync(cancellationToken);
+            var rows = await query
                 .OrderByDescending(delivery => delivery.QueuedAt)
+                .Skip((safePage - 1) * safeSize).Take(safeSize)
                 .Select(delivery => new InAppNotificationRow(
                     delivery.Id.Value, delivery.EventType, delivery.Title, delivery.Body,
                     delivery.Status.ToString(), delivery.QueuedAt, delivery.ReadAt))
                 .ToListAsync(cancellationToken);
-            return Results.Ok(rows);
+            return Results.Ok(new PagedResult<InAppNotificationRow>(rows, safePage, safeSize, total));
         });
 
         // TODO-AUTH: Notification.MarkRead — overview §G (hanya InApp)

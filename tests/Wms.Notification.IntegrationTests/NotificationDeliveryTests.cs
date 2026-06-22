@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Application.Notification;
+using Wms.BuildingBlocks.Application.Pagination;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inbound.Contracts;
 using Wms.Notification.Directory;
@@ -133,8 +134,8 @@ public sealed class NotificationDeliveryTests(PostgresFixture fixture)
             $"/notifications/deliveries/{delivery.Id.Value}/read", content: null);
         Assert.Equal(HttpStatusCode.NoContent, readResponse.StatusCode);
 
-        var rows = await client.GetFromJsonAsync<List<InAppNotificationRow>>("/notifications/inbox?userId=spv-1");
-        var row = Assert.Single(rows!);
+        var result = await client.GetFromJsonAsync<PagedResult<InAppNotificationRow>>("/notifications/inbox?userId=spv-1");
+        var row = Assert.Single(result!.Items);
         Assert.Equal("Read", row.Status);
     }
 
