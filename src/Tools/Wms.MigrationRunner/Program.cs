@@ -16,6 +16,8 @@ using Wms.Auth.Infrastructure.Persistence;
 using Wms.Auth.Infrastructure.Security;
 using Wms.Reporting.DependencyInjection;
 using Wms.Reporting.Persistence;
+using Wms.Notification.DependencyInjection;
+using Wms.Notification.Persistence;
 using Wms.Platform.Local.DependencyInjection;
 
 // What: MigrationRunner — env-neutral migration applier (ADR-0010 amendment)
@@ -64,6 +66,12 @@ var reportingConnection = builder.Configuration.GetConnectionString("reportingdb
 
 builder.Services.AddReporting(reportingConnection);
 
+var notificationConnection = builder.Configuration.GetConnectionString("notificationdb")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:notificationdb tidak diset (appsettings.json / env / --ConnectionStrings:notificationdb=...).");
+
+builder.Services.AddNotification(notificationConnection);
+
 using var host = builder.Build();
 
 await ApplyMigrationsAsync<InboundDbContext>(host, "Inbound");
@@ -72,6 +80,7 @@ await ApplyMigrationsAsync<OutboundDbContext>(host, "Outbound");
 await ApplyMigrationsAsync<MasterDataDbContext>(host, "MasterData");
 await ApplyMigrationsAsync<AuthDbContext>(host, "Auth");
 await ApplyMigrationsAsync<ReportingDbContext>(host, "Reporting");
+await ApplyMigrationsAsync<NotificationDbContext>(host, "Notification");
 
 // What: seed reference/admin Auth (ADR-0012) — DB-prep = migrate schema + seed seed-data, idempoten.
 using (var scope = host.Services.CreateScope())

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!-- WebApplicationFactory<Program> (endpoint REST in-proc + DI override) -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wms.TestSupport\Wms.TestSupport.csproj" />
+    <!-- SUT Notification (collapsed): notifier + enqueuer + worker + domain + DbContext + endpoint -->
+    <ProjectReference Include="..\..\src\Modules\Notification\Wms.Notification\Wms.Notification.csproj" />
+    <!-- host (WebApplicationFactory<Program>) -->
+    <ProjectReference Include="..\..\src\Hosts\Local\Wms.Notification.Host.Local\Wms.Notification.Host.Local.csproj" />
+    <!-- konstruksi event sumber (published language) -->
+    <ProjectReference Include="..\..\src\Modules\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
+    <!-- InboxMessage + DeadLetterMessage (assert exactly-once + DLQ) -->
+    <ProjectReference Include="..\..\src\BuildingBlocks\Wms.BuildingBlocks.Infrastructure\Wms.BuildingBlocks.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

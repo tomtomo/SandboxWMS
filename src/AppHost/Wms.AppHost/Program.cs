@@ -10,6 +10,7 @@ var outboundDb = postgres.AddDatabase("outbounddb");
 var masterdataDb = postgres.AddDatabase("masterdatadb");
 var authDb = postgres.AddDatabase("authdb");
 var reportingDb = postgres.AddDatabase("reportingdb");
+var notificationDb = postgres.AddDatabase("notificationdb");
 
 // Phase 04b: dev RSA keypair RS256 (ADR-0016) di-generate SEKALI per-run AppHost & DIDISTRIBUSI via env.
 // private key (signing) HANYA ke auth host; public key (verify OFFLINE) ke SEMUA host → validasi user-JWT
@@ -62,5 +63,15 @@ builder.AddProject<Projects.Wms_Outbound_Host_Local>("outbound")
 builder.AddProject<Projects.Wms_Reporting_Host_Local>("reporting")
     .WithReference(reportingDb)
     .WaitFor(reportingDb);
+
+// Phase 04d: Notification = pure consumer (ADR-0017) — consume event core → subscription → enqueue
+// delivery + worker async dispatch ke channel (idempotency + retry→DLQ). DB-per-service (notificationdb).
+// Ref auth + masterdata: resolve recipient detail (Auth read-API) + warehouse context (MasterData read-API)
+// via gRPC (service discovery). TAK butuh public key (authZ read deferred → 07a; s2s token Local stub).
+builder.AddProject<Projects.Wms_Notification_Host_Local>("notification")
+    .WithReference(notificationDb)
+    .WithReference(auth)
+    .WithReference(masterdata)
+    .WaitFor(notificationDb);
 
 builder.Build().Run();

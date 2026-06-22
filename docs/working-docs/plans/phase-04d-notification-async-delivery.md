@@ -1,6 +1,6 @@
 # Phase 04d — Notification: Async Delivery + Idempotency + Retry/DLQ
 
-**Status:** planned
+**Status:** done (2026-06-22)
 
 **Pre-conditions:**
 - **04b done:** Auth read-API (User/Role) hidup → recipient detail dapat di-resolve via gRPC.
@@ -38,6 +38,17 @@
 
 **Learning objective:** Event consumer (notification handler vs projection handler — beda efek), async worker decoupling (BackgroundService, jangan block flow utama), idempotent delivery (cek Sent), retry/DLQ (Dead Letter Channel, isolasi kegagalan channel provider), channel-provider abstraction (swap adapter).
 
-**Handoff notes:** Notification hidup; subscription+delivery+worker+DLQ siap; in-app delivery dipakai WebUI di 04e. Pola pure-consumer + worker sets up Azure Functions (05d) / Cloud Run + Pub/Sub push (06d).
+**Handoff notes:** Notification hidup (collapsed pure-consumer, schema `notification`): `NotificationSubscription` + `NotificationDelivery` (Pending/Sent/Failed/Read, plain AggregateRoot — audit-skip sadar spt Reporting) + `NotificationEnqueuer` (subscription resolve) + 2 notifier Inbox-committed + `NotificationDispatcher` (BackgroundService + `ProcessOnceAsync` testable) + channel ports (`IEmailSender`/`IPushNotifier`/`IInAppNotifier` di BuildingBlocks.Application, adapter log di Platform.Local) + directory ports gRPC (`IUserDirectory`→Auth, `IWarehouseDirectory`→MasterData, Polly+token, wired host) + REST (subscription create / in-app inbox / mark-as-read). Host + AppHost (`notificationdb`, ref auth+masterdata) + MigrationRunner + migration `InitialNotification`. Tests 5/5; full suite hijau; FF 15/15. in-app delivery dipakai WebUI di 04e. Pola pure-consumer + worker sets up Azure Functions (05d) / Cloud Run + Pub/Sub push (06d).
+
+**Keputusan arsitektur — mechanism-first (pilihan Tom, pre-condition gap pola 04c/ADR-0030):** trigger §G (GR→**Pending**, Putaway/Picking→**Assigned**, Wave→**Ready**) tak punya event di katalog (cuma versi *Completed/Confirmed*); Auth read-API tak punya `ListUsersByRole`. Diputuskan **consume event yang ADA, NOL sentuh modul `done`**, fidelity §G dicatat deferred:
+- Consume `inbound.gr_confirmed.v1` → SPV (subscription, warehouse-scoped) + **OverDelivery→purchasing AKURAT** (rejectedLines reason=`RejectExcess` = excess over-delivery §A4).
+- Consume `outbound.picking_completed.v1` → operator **DIRECT** (recipient = `OperatorId` payload, bukan subscription).
+- Subscription model menampung User+Role+warehouseScope (spec §G utuh); resolver merealisasikan **User-direct**; **Role fan-out di-defer** (butuh Auth `ListUsersByRole`).
+
+**Deferred-gap (auditable, calon enrich/ADR — JANGAN dianggap selesai):**
+1. Momen §G **Pending/Assigned/Ready** butuh event producer baru (`gr_pending`/`putaway_assigned`/`picking_assigned`/`wave_ready`) — Option A 04c-style bila kelak diminta (sentuh Inbound/Inventory/Outbound + asyncapi + FF#11).
+2. **Role→users fan-out** butuh enrich Auth read-API (`ListUsersByRole(roleCode, warehouseId?)`) — subscription Role kini tercatat tapi resolver kembalikan kosong sadar.
+3. Channel branded (SMTP/SendGrid/FCM/APNs) + Stock-Quarantine-aging trigger (07c) + authZ (07a) tetap out-of-scope per phase doc.
+- **Cross-process rail IDLE di Local** (E2E via test 1-proses invoke-langsung, sama Reporting).
 
 **Touchpoint cert:** AZ-204 — Azure Functions + Service Bus (pattern; serverless branded 05d). PCD — Cloud Run + Pub/Sub push (pattern; branded 06d).

@@ -2,11 +2,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Wms.BuildingBlocks.Application.Auditing;
 using Wms.BuildingBlocks.Application.Caching;
 using Wms.BuildingBlocks.Application.Messaging;
+using Wms.BuildingBlocks.Application.Notification;
 using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Application.Storage;
 using Wms.Platform.Local.Auditing;
 using Wms.Platform.Local.Caching;
 using Wms.Platform.Local.Messaging;
+using Wms.Platform.Local.Notification;
 using Wms.Platform.Local.Security;
 using Wms.Platform.Local.Storage;
 
@@ -80,6 +82,19 @@ public static class LocalPlatformExtensions
     public static IServiceCollection AddLocalSecretProvider(this IServiceCollection services)
     {
         services.AddSingleton<ISecretProvider, LocalSecretProvider>();
+        return services;
+    }
+
+    // What: composition adapter channel notifikasi Local (port IEmailSender/IPushNotifier/
+    // IInAppNotifier → log stub; ADR-0017 channel abstraction)
+    // Why: worker Notification (04d) men-dispatch ke channel via port; Local = log/in-memory
+    // (tak ada SMTP/FCM). Singleton (stateless). Cloud (SendGrid/FCM/SignalR) swap tanpa sentuh
+    // worker (Hexagonal). Branded provider di-defer (out-of-scope 04d).
+    public static IServiceCollection AddLocalNotificationChannels(this IServiceCollection services)
+    {
+        services.AddSingleton<IEmailSender, LoggingEmailSender>();
+        services.AddSingleton<IPushNotifier, LoggingPushNotifier>();
+        services.AddSingleton<IInAppNotifier, LoggingInAppNotifier>();
         return services;
     }
 }
