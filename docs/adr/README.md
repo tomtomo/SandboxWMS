@@ -44,6 +44,7 @@ Index dari **Architecture Decision Record (ADR)** untuk sandbox microservices **
 | [0017](0017-eventual-consistency-reporting-notification.md) | Eventual consistency Reporting/Notification | Accepted | Pure consumer; projection rebuild-able; notif async + retry/DLQ |
 | [0018](0018-compute-hosting-mixed-paas.md) | Compute Hosting Model — Mixed PaaS | Accepted | Compute profil-driven (container/web-PaaS/serverless) demi cert breadth — formalisasi semi-ADR |
 | [0028](0028-picking-completed-event.md) | Picking-completed event (Outbound→Inventory) | Accepted | Realisasi kanal sinyal overview §B (`Stock Allocated→Picked`); event ke-5 di luar katalog 4, dijaga [ADR-0023](0023-event-contract-catalog-asyncapi.md) |
+| [0030](0030-reporting-event-enrichment.md) | Event enrichment + Inventory stock-level events untuk Reporting | Accepted | Event-carried state transfer untuk read-side: enrich `gr_confirmed`(+supplier)/`picking_completed`(+operator) non-breaking + 2 event baru `inventory.putaway_completed.v1`/`inventory.stock_removed.v1` (owner-emitted); katalog 5→7, dijaga [ADR-0023](0023-event-contract-catalog-asyncapi.md) |
 
 ## Tier C — Cross-cutting & Operasional
 
@@ -80,6 +81,7 @@ Tier C: 0019 error-handling · 0020 resilience · 0021 s2s-auth · 0022 audit-lo
                         0023 asyncapi-catalog(+FF) · 0024 trace-context · 0025 platform-ports · 0026 ddd-conv · 0027 system-actor
 0023 contract-coverage FF ── menumpang harness ──▶ 0003      0021/0022/0027 ── dipakai ──▶ audit & s2s identity
 0028 picking-completed event ── realisasi sinyal overview §B ──▶ Stock Allocated→Picked; berlandas 0005·0010, dijaga 0023
+0030 reporting event enrichment ── event-carried state transfer ──▶ projection §F (Reporting); berlandas 0005·0010·0017, pola 0028, dijaga 0023(FF#11)
 0029 local in-proc messaging ── E2E via test 1-proses; cross-process ──▶ broker cloud P05/06; berlandas 0005·0008·0010
 ```
 

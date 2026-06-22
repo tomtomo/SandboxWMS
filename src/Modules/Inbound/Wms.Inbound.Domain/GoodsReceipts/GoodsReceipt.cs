@@ -184,7 +184,7 @@ public sealed class GoodsReceipt : AuditableAggregateRoot<GoodsReceiptId>
 
         var (received, rejected) = BuildConfirmationOutcome();
         Status = GoodsReceiptStatus.Confirmed;
-        RaiseDomainEvent(new GoodsReceiptConfirmed(Id, WarehouseId, received, rejected));
+        RaiseDomainEvent(new GoodsReceiptConfirmed(Id, WarehouseId, SupplierId, received, rejected));
         return Result.Success();
     }
 

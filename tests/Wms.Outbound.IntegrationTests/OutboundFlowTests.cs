@@ -2,6 +2,7 @@ using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Domain.Results;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inventory.Contracts;
@@ -126,6 +127,8 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
         var first = JsonSerializer.Deserialize<PickingCompletedV1>(emitted[0].Payload)!;
         Assert.Equal(waveId, first.WaveId);
         Assert.Equal("STG-1", first.StagingLocationId);
+        // ADR-0030: operatorId di-source ICurrentUser (origin-mesin test → SYSTEM) untuk OperatorActivity
+        Assert.Equal(SystemActor.Id, first.OperatorId);
     }
 
     [Fact]

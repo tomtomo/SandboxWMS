@@ -1,9 +1,14 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Wms.BuildingBlocks.Application.Abstractions;
+using Wms.BuildingBlocks.Application.Messaging;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Domain.Results;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inbound.Contracts;
+using Wms.Inventory.Application.Abstractions;
+using Wms.Inventory.Application.Features.CompletePutaway;
 using Wms.Inventory.Application.Features.ConsumeGoodsReceiptConfirmed;
 using Wms.Inventory.Application.Features.ConsumePickingCompleted;
 using Wms.Inventory.Application.Features.ConsumeShipmentDispatched;
@@ -36,7 +41,7 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
         await using var sp = await BuildInventoryAsync();
 
         var message = new GRConfirmedV1(
-            Guid.NewGuid(), Warehouse,
+            Guid.NewGuid(), Warehouse, SupplierId: null,
             [
                 new ReceivedLineV1("SKU-GOOD", 10, "Good", "B1", new DateOnly(2026, 12, 31)),
                 new ReceivedLineV1("SKU-QC", 5, "QcHold", "B2", new DateOnly(2026, 11, 30)),
@@ -104,7 +109,7 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
 
         var pickingTaskId = Guid.NewGuid();
         await DeliverPickingCompletedAsync(sp, Guid.NewGuid(),
-            new PickingCompletedV1(waveId, pickingTaskId, stockId, "SKU-1", "B1", 10, "STG-1"));
+            new PickingCompletedV1(waveId, pickingTaskId, stockId, "SKU-1", "B1", 10, "STG-1", OperatorId: null));
 
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
@@ -129,6 +134,18 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
         Assert.False(await db.Stocks.AnyAsync(s => s.AllocatedToWaveId == waveId));  // wave didispatch → removed
         Assert.True(await db.Stocks.AnyAsync(s => s.Id == new StockId(survivorId))); // wave lain tak tersentuh
+
+        // ADR-0030: Inventory emit StockRemovedV1 (pemilik Stock) → Reporting StockOnHandView decrement +
+        // DispatchSummary. Hanya stock wave ini, dgn dimensi warehouse/sku/batch/qty yang Outbound tak punya.
+        var emitted = Assert.Single(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockRemovedV1.LogicalName).ToListAsync());
+        var payload = JsonSerializer.Deserialize<StockRemovedV1>(emitted.Payload)!;
+        Assert.Equal(waveId, payload.WaveId);
+        var line = Assert.Single(payload.Lines);
+        Assert.Equal(Warehouse, line.WarehouseId);
+        Assert.Equal("SKU-1", line.Sku);
+        Assert.Equal("B1", line.Batch);
+        Assert.Equal(10, line.Qty);
     }
 
     [Fact]
@@ -152,7 +169,53 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
             .CountAsync(i => i.HandlerType == WaveReleasedConsumer.HandlerType));            // diproses sekali
     }
 
+    [Fact]
+    public async Task CompletePutaway_emits_putaway_completed_with_operator()
+    {
+        await using var sp = await BuildInventoryAsync();
+
+        // seed OnHand stock + PutawayTask Assigned (referensikan stock by id, bukan navigation)
+        var stockId = await SeedAsync(sp, StockStatus.OnHand, "SKU-1", "B1", null, 10);
+        var taskId = await SeedPutawayTaskAsync(sp, stockId);
+
+        // panggil handler langsung (provider infra-only): real DB + real outbox; handler SaveChanges sendiri.
+        using (var scope = sp.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            var handler = new CompletePutawayHandler(
+                services.GetRequiredService<IPutawayTaskRepository>(),
+                services.GetRequiredService<IStockRepository>(),
+                services.GetRequiredService<IIntegrationEventOutbox>(),
+                services.GetRequiredService<ICurrentUser>(),
+                services.GetRequiredService<IUnitOfWork>());
+            AssertSuccess(await handler.Handle(new CompletePutawayCommand(taskId, "RACK-B12"), default));
+        }
+
+        // ADR-0030: PutawayCompletedV1 ter-emit → Reporting OperatorActivity (putaway-count per operator)
+        using var verify = sp.CreateScope();
+        var db = verify.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        var emitted = Assert.Single(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == PutawayCompletedV1.LogicalName).ToListAsync());
+        var payload = JsonSerializer.Deserialize<PutawayCompletedV1>(emitted.Payload)!;
+        Assert.Equal(taskId, payload.PutawayTaskId);
+        Assert.Equal(stockId, payload.StockId);
+        Assert.Equal("SKU-1", payload.Sku);
+        Assert.Equal(Warehouse, payload.WarehouseId);
+        Assert.Equal(SystemActor.Id, payload.OperatorId);  // origin-mesin (no HttpContext) → SYSTEM (ADR-0027)
+    }
+
     // ---- harness ----
+
+    // seed PutawayTask Assigned untuk stock OnHand, kembalikan taskId
+    private static async Task<Guid> SeedPutawayTaskAsync(ServiceProvider sp, Guid stockId)
+    {
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        var task = PutawayTask.Assign(PutawayTaskId.New(), new StockId(stockId), "REC-01", "RACK-A1", assignedTo: null);
+        db.PutawayTasks.Add(task);
+        await db.SaveChangesAsync();
+        return task.Id.Value;
+    }
 
     private async Task<ServiceProvider> BuildInventoryAsync()
     {

@@ -13,9 +13,14 @@ namespace Wms.Inbound.Contracts;
 // baru = penambahan field → tetap v1 (konsumen lama abaikan field baru; field lama tak berubah).
 // `Status` dipakai 03b untuk branch OnHand vs Quarantine; `Expiry` untuk FEFO; `RejectedLines` =
 // metadata return-to-vendor / excess (overview §A4).
+//
+// What: enrichment ke-2 non-breaking — `SupplierId` (nullable) untuk Reporting (ADR-0030)
+// Why: Reporting ReceivingSummary butuh discrepancy rate PER SUPPLIER; supplier = data domain header
+// GR (bukan diderivasi konsumen). Field nullable-add → tetap v1 (Inventory consumer abaikan; FF#11 jaga).
 public sealed record GRConfirmedV1(
     Guid GrId,
     string WarehouseId,
+    string? SupplierId,
     IReadOnlyList<ReceivedLineV1> ReceivedLines,
     IReadOnlyList<RejectedLineV1> RejectedLines)
 {

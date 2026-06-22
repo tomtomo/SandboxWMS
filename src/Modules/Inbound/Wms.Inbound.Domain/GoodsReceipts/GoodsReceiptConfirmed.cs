@@ -7,9 +7,13 @@ namespace Wms.Inbound.Domain;
 // TURUNAN resolusi two-axis (ADR-0013): receivedLines (Good/QcHold → masuk Stock) dan rejectedLines
 // (WrongItem/excess → tidak). Diterjemahkan jadi integration event GRConfirmedV1 di Application
 // sebelum menyeberang broker (ADR-0005) — tipe domain ini tak pernah jadi wire-contract.
+// SupplierId (nullable): data domain header GR yang di-bawa untuk Reporting ReceivingSummary
+// per-supplier (ADR-0030) — supplier adalah atribut bisnis aggregate, jadi mengalir lewat event ini
+// (beda dgn operator/aktor yang concern audit → di-source ICurrentUser di handler, bukan domain).
 public sealed record GoodsReceiptConfirmed(
     GoodsReceiptId GoodsReceiptId,
     string WarehouseId,
+    string? SupplierId,
     IReadOnlyList<ConfirmedReceivedLine> ReceivedLines,
     IReadOnlyList<ConfirmedRejectedLine> RejectedLines) : IDomainEvent;
 

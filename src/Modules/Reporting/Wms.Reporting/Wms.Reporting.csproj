@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- What: modul Reporting = pure consumer COLLAPSED 1 project (blueprint §3 right-sizing; ADR-0017).
+       Why: read-model/projection tak punya domain invariant → full-5 overkill. Satu assembly menampung
+       projection + store + consumer + query endpoint. Hanya konsumsi *.Contracts modul lain (FF#3); tak
+       publish event (tak punya .Contracts sendiri). EF (Npgsql) untuk projection denormalized schema "reporting". -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Infrastructure\Wms.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Web\Wms.BuildingBlocks.Web.csproj" />
+    <!-- Konsumsi integration event lintas-context (published language, FF#3 *.Contracts only) -->
+    <ProjectReference Include="..\..\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\Inventory\Wms.Inventory.Contracts\Wms.Inventory.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider Postgres (UseNpgsql) + snake_case. Npgsql ≠ cloud SDK → FF#1 aman. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

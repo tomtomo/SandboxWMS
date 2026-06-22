@@ -52,6 +52,7 @@ public sealed class ConfirmGoodsReceiptHandler(
         var payload = new GRConfirmedV1(
             confirmed.GoodsReceiptId.Value,
             confirmed.WarehouseId,
+            confirmed.SupplierId,
             confirmed.ReceivedLines
                 .Select(line => new ReceivedLineV1(
                     line.Sku, line.Quantity, ToStatus(line.Status), line.Batch, line.Expiry))

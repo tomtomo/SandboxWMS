@@ -34,6 +34,8 @@ info:
     | `inventory.stock_allocated.v1` | Inventory | Outbound | `Stock` Available→Allocated; semua line wave teralokasi (§C3) | ✅ ya | **aktif** (03b; consumer 03c) |
     | `outbound.shipment_dispatched.v1` | Outbound | Inventory | `Wave` Ready→Dispatched (§C6) | ✅ ya | tipe+consumer **03b** · emitter 03c |
     | `outbound.picking_completed.v1` | Outbound | Inventory | `PickingTask` Assigned→Completed (§B/§C5, ADR-0028) | ✅ ya | tipe+consumer **03b** · emitter 03c |
+    | `inventory.putaway_completed.v1` | Inventory | Reporting | `PutawayTask` Assigned→Completed (§B2, ADR-0030) | ✅ ya | tipe+emitter+consumer **04c** |
+    | `inventory.stock_removed.v1` | Inventory | Reporting | Stock `Picked→removed` saat dispatch (§B, ADR-0030) | ✅ ya | tipe+emitter+consumer **04c** |
     | `inventory.stock_low.v*` | Inventory | — (none) | Stock qty < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
     | `inventory.stock_near_expiry.v*` | Inventory | — (none) | Batch expiry < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
 
@@ -118,6 +120,33 @@ channels:
     messages:
       pickingCompleted:
         $ref: '#/components/messages/PickingCompletedV1'
+
+  inventoryPutawayCompleted:
+    address: inventory.putaway_completed.v1
+    title: Putaway Completed
+    summary: Satu PutawayTask selesai — stock OnHand→Available di rak.
+    description: |
+      Event ke-6, **diputuskan di ADR-0030** (event-carried state transfer untuk read-side). Di-emit
+      Inventory saat `CompletePutaway` (PutawayTask Assigned→Completed, overview §B2). Dikonsumsi
+      **Reporting** → OperatorActivity (putaway-count per operator). `operatorId` = aktor penyelesai
+      (SYSTEM s/d authZ 07a). CLR: `Wms.Inventory.Contracts.PutawayCompletedV1`.
+    messages:
+      putawayCompleted:
+        $ref: '#/components/messages/PutawayCompletedV1'
+
+  inventoryStockRemoved:
+    address: inventory.stock_removed.v1
+    title: Stock Removed
+    summary: Stock keluar gudang saat dispatch (Picked→removed).
+    description: |
+      Event ke-7, **diputuskan di ADR-0030**. Di-emit Inventory saat ia meng-consume `ShipmentDispatched`
+      dan menghapus Stock Picked terikat wave (overview §B `Picked→removed`). Membawa `lines[]`
+      (warehouse/sku/batch/qty) — data milik Inventory yang Outbound `shipment_dispatched` tak punya.
+      Dikonsumsi **Reporting** → StockOnHandView decrement + DispatchSummary (count + volume).
+      CLR: `Wms.Inventory.Contracts.StockRemovedV1`.
+    messages:
+      stockRemoved:
+        $ref: '#/components/messages/StockRemovedV1'
 
 #
 # OPERATIONS — perspektif aplikasi: `send` = emitter, `receive` = consumer (AsyncAPI 3.0).
@@ -205,6 +234,38 @@ operations:
     messages:
       - $ref: '#/channels/outboundPickingCompleted/messages/pickingCompleted'
 
+  inventorySendPutawayCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/inventoryPutawayCompleted'
+    summary: Inventory mempublish PutawayCompleted saat CompletePutaway (ADR-0030).
+    messages:
+      - $ref: '#/channels/inventoryPutawayCompleted/messages/putawayCompleted'
+
+  reportingReceivePutawayCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/inventoryPutawayCompleted'
+    summary: Reporting meng-consume PutawayCompleted → OperatorActivity (putaway-count).
+    messages:
+      - $ref: '#/channels/inventoryPutawayCompleted/messages/putawayCompleted'
+
+  inventorySendStockRemoved:
+    action: send
+    channel:
+      $ref: '#/channels/inventoryStockRemoved'
+    summary: Inventory mempublish StockRemoved saat dispatch menghapus Stock Picked (ADR-0030).
+    messages:
+      - $ref: '#/channels/inventoryStockRemoved/messages/stockRemoved'
+
+  reportingReceiveStockRemoved:
+    action: receive
+    channel:
+      $ref: '#/channels/inventoryStockRemoved'
+    summary: Reporting meng-consume StockRemoved → StockOnHandView decrement + DispatchSummary.
+    messages:
+      - $ref: '#/channels/inventoryStockRemoved/messages/stockRemoved'
+
 #
 # COMPONENTS — message + schema reusable.
 #
@@ -250,6 +311,22 @@ components:
       payload:
         $ref: '#/components/schemas/PickingCompletedV1Payload'
 
+    PutawayCompletedV1:
+      name: PutawayCompletedV1
+      title: Putaway Completed (v1)
+      summary: PutawayTask selesai — Stock OnHand→Available; OperatorActivity (ADR-0030).
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PutawayCompletedV1Payload'
+
+    StockRemovedV1:
+      name: StockRemovedV1
+      title: Stock Removed (v1)
+      summary: Stock keluar gudang saat dispatch; StockOnHandView decrement + DispatchSummary (ADR-0030).
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/StockRemovedV1Payload'
+
   schemas:
     # --- Channel terisi penuh: harus cermin tipe Wms.Inbound.Contracts.GRConfirmedV1 ---
     GRConfirmedV1Payload:
@@ -264,6 +341,9 @@ components:
         warehouseId:
           type: string
           description: Warehouse tempat penerimaan.
+        supplierId:
+          type: [string, "null"]
+          description: Supplier GR (nullable; enrichment ADR-0030 untuk Reporting ReceivingSummary per-supplier).
         receivedLines:
           type: array
           description: Line yang diterima (Good→OnHand, QcHold→Quarantine di Inventory).
@@ -391,3 +471,55 @@ components:
           minimum: 1
         stagingLocationId:
           type: string
+        operatorId:
+          type: [string, "null"]
+          description: Aktor penyelesai pick (nullable; enrichment ADR-0030 untuk Reporting OperatorActivity per-operator; SYSTEM s/d authZ 07a).
+
+    # --- ADR-0030: Inventory → Reporting (event-carried state transfer untuk read-side) ---
+    PutawayCompletedV1Payload:
+      type: object
+      additionalProperties: false
+      required: [putawayTaskId, stockId, sku, warehouseId]
+      properties:
+        putawayTaskId:
+          type: string
+          format: uuid
+        stockId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        warehouseId:
+          type: string
+        operatorId:
+          type: [string, "null"]
+          description: Aktor penyelesai putaway (nullable; SYSTEM s/d authZ 07a). OperatorActivity per-operator.
+
+    StockRemovedV1Payload:
+      type: object
+      additionalProperties: false
+      required: [waveId, lines]
+      properties:
+        waveId:
+          type: string
+          format: uuid
+        lines:
+          type: array
+          description: Stock yang keluar gudang (Picked→removed) — dimensi StockOnHandView decrement + DispatchSummary volume.
+          items:
+            $ref: '#/components/schemas/StockRemovedLineV1'
+    StockRemovedLineV1:
+      type: object
+      additionalProperties: false
+      required: [warehouseId, sku, qty]
+      properties:
+        warehouseId:
+          type: string
+        sku:
+          type: string
+        batch:
+          type: [string, "null"]
+          description: Batch yang keluar (null untuk produk tanpa batch-tracking).
+        qty:
+          type: integer
+          minimum: 1

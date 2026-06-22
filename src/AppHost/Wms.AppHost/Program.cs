@@ -9,6 +9,7 @@ var inventoryDb = postgres.AddDatabase("inventorydb");
 var outboundDb = postgres.AddDatabase("outbounddb");
 var masterdataDb = postgres.AddDatabase("masterdatadb");
 var authDb = postgres.AddDatabase("authdb");
+var reportingDb = postgres.AddDatabase("reportingdb");
 
 // Phase 04b: dev RSA keypair RS256 (ADR-0016) di-generate SEKALI per-run AppHost & DIDISTRIBUSI via env.
 // private key (signing) HANYA ke auth host; public key (verify OFFLINE) ke SEMUA host → validasi user-JWT
@@ -54,5 +55,12 @@ builder.AddProject<Projects.Wms_Outbound_Host_Local>("outbound")
     .WithReference(masterdata)
     .WithEnvironment(PublicKeyEnv, jwtPublicKeyPem)
     .WaitFor(outboundDb);
+
+// Phase 04c: Reporting = pure consumer (ADR-0017) — projection read-side dari domain event core via eventual
+// consistency + query REST. DB-per-service (reportingdb). TAK butuh public key (authZ read deferred → 07a)
+// maupun ref masterdata (semua dimensi projeksi ter-bawa di payload event, ADR-0030 — nol sync-query).
+builder.AddProject<Projects.Wms_Reporting_Host_Local>("reporting")
+    .WithReference(reportingDb)
+    .WaitFor(reportingDb);
 
 builder.Build().Run();
