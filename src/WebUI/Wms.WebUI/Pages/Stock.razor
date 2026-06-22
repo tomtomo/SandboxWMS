@@ -1,0 +1,66 @@
+@page "/stock"
+@inject ReportingApiClient Reporting
+@inject TokenStore TokenStore
+
+<PageTitle>Stock & Reports</PageTitle>
+<MudText Typo="Typo.h4" GutterBottom="true">Stock &amp; Reports</MudText>
+
+@if (!TokenStore.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning">Login dulu untuk akses.</MudAlert>
+}
+else
+{
+    <MudButton StartIcon="@Icons.Material.Filled.Refresh" OnClick="Load" Class="mb-4">Refresh</MudButton>
+
+    <MudText Typo="Typo.h6" GutterBottom="true">Stock on Hand</MudText>
+    <MudTable Items="_stock" Hover="true" Dense="true" Class="mb-8">
+        <HeaderContent>
+            <MudTh>Warehouse</MudTh>
+            <MudTh>SKU</MudTh>
+            <MudTh>Batch</MudTh>
+            <MudTh>Qty</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Warehouse">@context.WarehouseId</MudTd>
+            <MudTd DataLabel="SKU">@context.Sku</MudTd>
+            <MudTd DataLabel="Batch">@context.Batch</MudTd>
+            <MudTd DataLabel="Qty">@context.QtyOnHand</MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <MudText Typo="Typo.h6" GutterBottom="true">Receiving Summary</MudText>
+    <MudTable Items="_receiving" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Supplier</MudTh>
+            <MudTh>Day</MudTh>
+            <MudTh>GR</MudTh>
+            <MudTh>Received</MudTh>
+            <MudTh>Rejected</MudTh>
+            <MudTh>Disc.Rate</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Supplier">@context.SupplierId</MudTd>
+            <MudTd DataLabel="Day">@context.Day.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="GR">@context.GrCount</MudTd>
+            <MudTd DataLabel="Received">@context.ReceivedQty</MudTd>
+            <MudTd DataLabel="Rejected">@context.RejectedQty</MudTd>
+            <MudTd DataLabel="Disc.Rate">@context.DiscrepancyRate.ToString("P1")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private IReadOnlyList<StockOnHandRow> _stock = [];
+    private IReadOnlyList<ReceivingSummaryRow> _receiving = [];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        if (!TokenStore.IsAuthenticated)
+            return;
+        _stock = await Reporting.StockOnHandAsync();
+        _receiving = await Reporting.ReceivingSummaryAsync();
+    }
+}

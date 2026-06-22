@@ -32,6 +32,11 @@
     <ProjectReference Include="..\..\Hosts\Local\Wms.Auth.Host.Local\Wms.Auth.Host.Local.csproj" />
     <ProjectReference Include="..\..\Hosts\Local\Wms.Reporting.Host.Local\Wms.Reporting.Host.Local.csproj" />
     <ProjectReference Include="..\..\Hosts\Local\Wms.Notification.Host.Local\Wms.Notification.Host.Local.csproj" />
+    <!-- Phase 04e: gateway (YARP) + WebUI (Blazor Server) — penutup orkestrasi lokal -->
+    <ProjectReference Include="..\..\Gateway\Wms.Gateway\Wms.Gateway.csproj" />
+    <ProjectReference Include="..\..\WebUI\Wms.WebUI\Wms.WebUI.csproj" />
+    <!-- Phase 04e: MigrationRunner sbg resource Aspire (DB-prep run-to-completion sebelum service) -->
+    <ProjectReference Include="..\..\Tools\Wms.MigrationRunner\Wms.MigrationRunner.csproj" />
   </ItemGroup>
 
 </Project>

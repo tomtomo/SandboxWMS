@@ -12,6 +12,7 @@ public static class InboundApiExtensions
     public static IEndpointRouteBuilder MapInboundEndpoints(this IEndpointRouteBuilder app)
     {
         new CreateGoodsReceiptEndpoint().MapEndpoint(app);
+        new ListGoodsReceiptsEndpoint().MapEndpoint(app);
         new ScanItemEndpoint().MapEndpoint(app);
         new DeclareScanCompleteEndpoint().MapEndpoint(app);
         new ResolveDiscrepancyEndpoint().MapEndpoint(app);

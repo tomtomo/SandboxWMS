@@ -35,6 +35,8 @@ public static class InboundInfrastructureExtensions
         services.AddTransactionalMessaging();
         services.AddScoped<IGoodsReceiptRepository, GoodsReceiptRepository>();
         services.AddScoped<IGRAttachmentRepository, GRAttachmentRepository>();
+        // read-port (CQRS read-side, ADR-0004): list GR untuk WebUI (Phase 04e) tanpa lewat aggregate/repo
+        services.AddScoped<IGoodsReceiptReader, GoodsReceiptReader>();
         return services;
     }
 }

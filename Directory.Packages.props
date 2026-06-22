@@ -89,5 +89,13 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.15" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="7.1.2" />
+    <!-- Phase 04e (WebUI + Gateway, ADR-0006/0018). YARP = reverse-proxy lokal (routing REST +
+         cross-cutting, TANPA transcoding); ServiceDiscovery.Yarp = destination resolver YARP atas
+         Aspire service discovery (10.7.0 selaras pin Microsoft.Extensions.ServiceDiscovery di atas).
+         MudBlazor = component lib Blazor Server (thin UI). Ketiganya BUKAN cloud SDK → FF#1 aman;
+         hanya dipakai di src/Gateway + src/WebUI (top-level app, bukan Modules/BuildingBlocks). -->
+    <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="10.7.0" />
+    <PackageVersion Include="MudBlazor" Version="9.5.0" />
   </ItemGroup>
 </Project>

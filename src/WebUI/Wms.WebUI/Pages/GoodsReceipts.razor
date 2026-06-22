@@ -1,0 +1,110 @@
+@page "/goods-receipts"
+@inject InboundApiClient Inbound
+@inject TokenStore TokenStore
+@inject ISnackbar Snackbar
+
+<PageTitle>Goods Receipts</PageTitle>
+<MudText Typo="Typo.h4" GutterBottom="true">Goods Receipts</MudText>
+
+@if (!TokenStore.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning">Login dulu untuk akses.</MudAlert>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="5">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" GutterBottom="true">Create GR</MudText>
+                <MudTextField @bind-Value="_warehouseId" Label="Warehouse Id" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_poRef" Label="PO Ref (optional)" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_supplierId" Label="Supplier Id (optional)" Variant="Variant.Outlined" Class="mb-2" />
+                <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Expected Lines</MudText>
+                @foreach (var line in _lines)
+                {
+                    <div class="d-flex gap-3 mb-2">
+                        <MudTextField @bind-Value="line.Sku" Label="SKU" Variant="Variant.Outlined" />
+                        <MudNumericField @bind-Value="line.ExpectedQty" Label="Qty" Variant="Variant.Outlined" Min="1" />
+                    </div>
+                }
+                <MudButton StartIcon="@Icons.Material.Filled.Add" OnClick="AddLine" Size="Size.Small">Add line</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                           OnClick="Create" Disabled="_busy" Class="mt-3">Create GR</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="7">
+            <MudPaper Class="pa-4">
+                <div class="d-flex align-center">
+                    <MudText Typo="Typo.h6">GR List</MudText>
+                    <MudSpacer />
+                    <MudButton StartIcon="@Icons.Material.Filled.Refresh" OnClick="Load" Size="Size.Small">Refresh</MudButton>
+                </div>
+                <MudTable Items="_rows" Hover="true" Dense="true" Class="mt-2">
+                    <HeaderContent>
+                        <MudTh>GR</MudTh>
+                        <MudTh>Warehouse</MudTh>
+                        <MudTh>PO</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Lines</MudTh>
+                        <MudTh>Created</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="GR">@ShortId(context.GrId)</MudTd>
+                        <MudTd DataLabel="Warehouse">@context.WarehouseId</MudTd>
+                        <MudTd DataLabel="PO">@context.PoRef</MudTd>
+                        <MudTd DataLabel="Status">@context.Status</MudTd>
+                        <MudTd DataLabel="Lines">@context.ExpectedLineCount</MudTd>
+                        <MudTd DataLabel="Created">@context.CreatedAt.LocalDateTime.ToString("g")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private string _warehouseId = "WH1";
+    private string _poRef = string.Empty;
+    private string _supplierId = string.Empty;
+    private readonly List<LineInput> _lines = [new LineInput { Sku = "SKU1", ExpectedQty = 10 }];
+    private IReadOnlyList<GoodsReceiptListRow> _rows = [];
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private void AddLine() => _lines.Add(new LineInput());
+
+    private async Task Load()
+    {
+        if (!TokenStore.IsAuthenticated)
+            return;
+        _rows = await Inbound.ListAsync();
+    }
+
+    private async Task Create()
+    {
+        _busy = true;
+        var lines = _lines
+            .Where(line => !string.IsNullOrWhiteSpace(line.Sku))
+            .Select(line => new CreateLine(line.Sku, line.ExpectedQty))
+            .ToList();
+        var (ok, message) = await Inbound.CreateAsync(
+            _warehouseId,
+            string.IsNullOrWhiteSpace(_poRef) ? null : _poRef,
+            string.IsNullOrWhiteSpace(_supplierId) ? null : _supplierId,
+            lines);
+        _busy = false;
+        Snackbar.Add(message, ok ? Severity.Success : Severity.Error);
+        if (ok)
+            await Load();
+    }
+
+    private static string ShortId(Guid id) => id.ToString()[..8];
+
+    // mutable form model (binding) — dipetakan ke CreateLine (record DTO) saat submit
+    private sealed class LineInput
+    {
+        public string Sku { get; set; } = string.Empty;
+        public int ExpectedQty { get; set; } = 1;
+    }
+}
