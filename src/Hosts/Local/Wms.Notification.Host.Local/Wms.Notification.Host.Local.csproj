@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <!-- Modul Notification COLLAPSED (domain + consumer + worker + query endpoint dalam 1 project) -->
+    <ProjectReference Include="..\..\..\Modules\Notification\Wms.Notification\Wms.Notification.csproj" />
+    <ProjectReference Include="..\..\..\Platform\Wms.Platform.Local\Wms.Platform.Local.csproj" />
+    <ProjectReference Include="..\..\..\Platform\Wms.Platform.Hosting\Wms.Platform.Hosting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- gRPC client factory (AddGrpcClient) untuk read-API Auth + MasterData (recipient + warehouse). -->
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

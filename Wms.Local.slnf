@@ -37,12 +37,14 @@
       "src\\Modules\\Auth\\Wms.Auth.Contracts\\Wms.Auth.Contracts.csproj",
       "src\\Modules\\Auth\\Wms.Auth.Grpc\\Wms.Auth.Grpc.csproj",
       "src\\Modules\\Reporting\\Wms.Reporting\\Wms.Reporting.csproj",
+      "src\\Modules\\Notification\\Wms.Notification\\Wms.Notification.csproj",
       "src\\Hosts\\Local\\Wms.Inbound.Host.Local\\Wms.Inbound.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.Inventory.Host.Local\\Wms.Inventory.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.Outbound.Host.Local\\Wms.Outbound.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.MasterData.Host.Local\\Wms.MasterData.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.Auth.Host.Local\\Wms.Auth.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.Reporting.Host.Local\\Wms.Reporting.Host.Local.csproj",
+      "src\\Hosts\\Local\\Wms.Notification.Host.Local\\Wms.Notification.Host.Local.csproj",
       "src\\Tools\\Wms.MigrationRunner\\Wms.MigrationRunner.csproj",
       "tests\\Wms.TestSupport\\Wms.TestSupport.csproj",
       "tests\\Wms.Architecture.Tests\\Wms.Architecture.Tests.csproj",
@@ -56,7 +58,8 @@
       "tests\\Wms.MasterData.IntegrationTests\\Wms.MasterData.IntegrationTests.csproj",
       "tests\\Wms.Auth.Domain.UnitTests\\Wms.Auth.Domain.UnitTests.csproj",
       "tests\\Wms.Auth.IntegrationTests\\Wms.Auth.IntegrationTests.csproj",
-      "tests\\Wms.Reporting.IntegrationTests\\Wms.Reporting.IntegrationTests.csproj"
+      "tests\\Wms.Reporting.IntegrationTests\\Wms.Reporting.IntegrationTests.csproj",
+      "tests\\Wms.Notification.IntegrationTests\\Wms.Notification.IntegrationTests.csproj"
     ]
   }
 }

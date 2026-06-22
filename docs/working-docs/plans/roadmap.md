@@ -45,7 +45,7 @@ Status: `planned | in-progress | blocked | done`.
 | 04a | masterdata-read-api-cache-aside | Warehouse/Location/Product + gRPC read-API + `ICacheStore` cache-aside + snapshot wiring | done | 03c |
 | 04b | auth-jwt-refresh-token-rotation | User/Role/Permission/RefreshToken + login JWT RS256 + Argon2id + rotation + read-API | done | 04a |
 | 04c | reporting-projections | Pure consumer projection (Inbox-committed): StockOnHandView/ReceivingSummary/… | done | 03c |
-| 04d | notification-async-delivery | Subscription + Delivery + async worker + idempotency + retry/DLQ + channel ports | planned | 04b |
+| 04d | notification-async-delivery | Subscription + Delivery + async worker + idempotency + retry/DLQ + channel ports | done | 04b |
 | 04e | webui-gateway | Blazor Server WebUI (thin) + Gateway (YARP local) wiring REST | planned | 04c, 04d |
 
 ### Phase 05 — Azure / Mixed PaaS · prinsip 4

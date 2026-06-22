@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\Modules\MasterData\Wms.MasterData.Infrastructure\Wms.MasterData.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Auth\Wms.Auth.Infrastructure\Wms.Auth.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Reporting\Wms.Reporting\Wms.Reporting.csproj" />
+    <ProjectReference Include="..\..\Modules\Notification\Wms.Notification\Wms.Notification.csproj" />
     <!-- Platform.Local: IPasswordHasher (Argon2id) untuk seed admin Auth (DB-prep migrate + seed). -->
     <ProjectReference Include="..\..\Platform\Wms.Platform.Local\Wms.Platform.Local.csproj" />
   </ItemGroup>

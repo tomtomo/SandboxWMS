@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- What: modul Notification = pure consumer COLLAPSED 1 project (blueprint §3 right-sizing; ADR-0017).
+       Why: read-only ke core (consume event → subscription → enqueue delivery → worker dispatch). Satu
+       assembly menampung domain (subscription/delivery aggregate) + persistence + consumer + worker + query
+       endpoint. Hanya konsumsi *.Contracts (event) + *.Grpc (read-API client) modul lain (FF#3); tak publish
+       event (tak punya .Contracts sendiri). EF (Npgsql) untuk schema "notification". -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Application\Wms.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Infrastructure\Wms.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Web\Wms.BuildingBlocks.Web.csproj" />
+    <!-- Konsumsi integration event lintas-context (published language, FF#3 *.Contracts only) -->
+    <ProjectReference Include="..\..\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
+    <!-- gRPC read-API client stub (FF#3 *.Grpc only) — recipient detail (Auth) + warehouse context (MasterData) -->
+    <ProjectReference Include="..\..\Auth\Wms.Auth.Grpc\Wms.Auth.Grpc.csproj" />
+    <ProjectReference Include="..\..\MasterData\Wms.MasterData.Grpc\Wms.MasterData.Grpc.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider Postgres (UseNpgsql) + snake_case. Npgsql ≠ cloud SDK → FF#1 aman. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
