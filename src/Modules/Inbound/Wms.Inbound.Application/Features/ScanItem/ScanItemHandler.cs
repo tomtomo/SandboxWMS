@@ -14,7 +14,7 @@ public sealed class ScanItemHandler(IGoodsReceiptRepository repository, IUnitOfW
 {
     public async Task<Result> Handle(ScanItemCommand command, CancellationToken cancellationToken)
     {
-        var goodsReceipt = await repository.GetAsync(
+        var goodsReceipt = await repository.GetByIdAsync(
             new GoodsReceiptId(command.GoodsReceiptId), cancellationToken);
         if (goodsReceipt is null)
             return Result.Failure(GoodsReceiptErrors.NotFound);

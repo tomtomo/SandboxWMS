@@ -6,9 +6,11 @@ namespace Wms.WebUI.Services;
 public sealed class InboundApiClient(IHttpClientFactory httpClientFactory, TokenStore tokenStore)
     : ApiClientBase(httpClientFactory, tokenStore)
 {
-    public async Task<IReadOnlyList<GoodsReceiptListRow>> ListAsync(CancellationToken cancellationToken = default)
-        => await CreateClient().GetFromJsonAsync<List<GoodsReceiptListRow>>("/goods-receipts", cancellationToken)
-           ?? [];
+    public async Task<PagedResultDto<GoodsReceiptListRow>> ListAsync(
+        int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+        => await CreateClient().GetFromJsonAsync<PagedResultDto<GoodsReceiptListRow>>(
+               $"/goods-receipts?page={page}&pageSize={pageSize}", cancellationToken)
+           ?? new PagedResultDto<GoodsReceiptListRow>([], page, pageSize, 0);
 
     public async Task<(bool Ok, string Message)> CreateAsync(
         string warehouseId, string? poRef, string? supplierId,

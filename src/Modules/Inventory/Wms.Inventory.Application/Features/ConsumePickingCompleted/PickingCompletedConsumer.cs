@@ -29,7 +29,7 @@ public sealed class PickingCompletedConsumer(
         if (await inbox.HasProcessedAsync(eventId, HandlerType, cancellationToken))
             return Result.Success();
 
-        var stock = await stockRepository.GetAsync(new StockId(message.StockId), cancellationToken);
+        var stock = await stockRepository.GetByIdAsync(new StockId(message.StockId), cancellationToken);
         if (stock is null)
             return Result.Failure(StockErrors.NotFound);
 

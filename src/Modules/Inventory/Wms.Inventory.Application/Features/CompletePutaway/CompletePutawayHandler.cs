@@ -29,7 +29,7 @@ public sealed class CompletePutawayHandler(
 {
     public async Task<Result> Handle(CompletePutawayCommand command, CancellationToken cancellationToken)
     {
-        var task = await putawayTaskRepository.GetAsync(
+        var task = await putawayTaskRepository.GetByIdAsync(
             new PutawayTaskId(command.PutawayTaskId), cancellationToken);
         if (task is null)
             return Result.Failure(PutawayTaskErrors.NotFound);
@@ -38,7 +38,7 @@ public sealed class CompletePutawayHandler(
         if (complete.IsFailure)
             return complete;
 
-        var stock = await stockRepository.GetAsync(task.StockId, cancellationToken);
+        var stock = await stockRepository.GetByIdAsync(task.StockId, cancellationToken);
         if (stock is null)
             return Result.Failure(StockErrors.NotFound);
 

@@ -28,7 +28,7 @@ public sealed class CompletePickingHandler(
 {
     public async Task<Result> Handle(CompletePickingCommand command, CancellationToken cancellationToken)
     {
-        var task = await pickingTaskRepository.GetAsync(
+        var task = await pickingTaskRepository.GetByIdAsync(
             new PickingTaskId(command.PickingTaskId), cancellationToken);
         if (task is null)
             return Result.Failure(PickingTaskErrors.NotFound);
@@ -45,7 +45,7 @@ public sealed class CompletePickingHandler(
 
         // gate Wave→Ready (overview §C5): wave siap saat SEMUA PickingTask-nya Completed. Domain (MarkReady)
         // pemegang aturan; handler menyuplai fakta completion dari query (task yang baru selesai sudah tracked).
-        var wave = await waveRepository.GetAsync(new WaveId(task.WaveId), cancellationToken);
+        var wave = await waveRepository.GetByIdAsync(new WaveId(task.WaveId), cancellationToken);
         if (wave is null)
             return Result.Failure(WaveErrors.NotFound);
 

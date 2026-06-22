@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Wms.BuildingBlocks.Application.Pagination;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inbound.Contracts;
 using Wms.Inventory.Contracts;
@@ -131,9 +132,9 @@ public sealed class ReportingProjectionTests(PostgresFixture fixture)
             Guid.NewGuid(), Warehouse, "SUP-1", [new ReceivedLineV1("SKU-1", 10, "Good", "B1", null)], []));
 
         var client = factory.CreateClient();
-        var rows = await client.GetFromJsonAsync<List<StockOnHandRow>>("/reports/stock-on-hand");
+        var result = await client.GetFromJsonAsync<PagedResult<StockOnHandRow>>("/reports/stock-on-hand");
 
-        var row = Assert.Single(rows!);
+        var row = Assert.Single(result!.Items);
         Assert.Equal(Warehouse, row.WarehouseId);
         Assert.Equal("SKU-1", row.Sku);
         Assert.Equal("B1", row.Batch);
