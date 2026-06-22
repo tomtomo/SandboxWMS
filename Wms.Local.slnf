@@ -30,10 +30,17 @@
       "src\\Modules\\MasterData\\Wms.MasterData.Api\\Wms.MasterData.Api.csproj",
       "src\\Modules\\MasterData\\Wms.MasterData.Contracts\\Wms.MasterData.Contracts.csproj",
       "src\\Modules\\MasterData\\Wms.MasterData.Grpc\\Wms.MasterData.Grpc.csproj",
+      "src\\Modules\\Auth\\Wms.Auth.Domain\\Wms.Auth.Domain.csproj",
+      "src\\Modules\\Auth\\Wms.Auth.Application\\Wms.Auth.Application.csproj",
+      "src\\Modules\\Auth\\Wms.Auth.Infrastructure\\Wms.Auth.Infrastructure.csproj",
+      "src\\Modules\\Auth\\Wms.Auth.Api\\Wms.Auth.Api.csproj",
+      "src\\Modules\\Auth\\Wms.Auth.Contracts\\Wms.Auth.Contracts.csproj",
+      "src\\Modules\\Auth\\Wms.Auth.Grpc\\Wms.Auth.Grpc.csproj",
       "src\\Hosts\\Local\\Wms.Inbound.Host.Local\\Wms.Inbound.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.Inventory.Host.Local\\Wms.Inventory.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.Outbound.Host.Local\\Wms.Outbound.Host.Local.csproj",
       "src\\Hosts\\Local\\Wms.MasterData.Host.Local\\Wms.MasterData.Host.Local.csproj",
+      "src\\Hosts\\Local\\Wms.Auth.Host.Local\\Wms.Auth.Host.Local.csproj",
       "src\\Tools\\Wms.MigrationRunner\\Wms.MigrationRunner.csproj",
       "tests\\Wms.TestSupport\\Wms.TestSupport.csproj",
       "tests\\Wms.Architecture.Tests\\Wms.Architecture.Tests.csproj",
@@ -44,7 +51,9 @@
       "tests\\Wms.Outbound.Domain.UnitTests\\Wms.Outbound.Domain.UnitTests.csproj",
       "tests\\Wms.Outbound.IntegrationTests\\Wms.Outbound.IntegrationTests.csproj",
       "tests\\Wms.MasterData.Domain.UnitTests\\Wms.MasterData.Domain.UnitTests.csproj",
-      "tests\\Wms.MasterData.IntegrationTests\\Wms.MasterData.IntegrationTests.csproj"
+      "tests\\Wms.MasterData.IntegrationTests\\Wms.MasterData.IntegrationTests.csproj",
+      "tests\\Wms.Auth.Domain.UnitTests\\Wms.Auth.Domain.UnitTests.csproj",
+      "tests\\Wms.Auth.IntegrationTests\\Wms.Auth.IntegrationTests.csproj"
     ]
   }
 }

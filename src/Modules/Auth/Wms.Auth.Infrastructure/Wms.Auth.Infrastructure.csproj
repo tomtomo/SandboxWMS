@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wms.Auth.Application\Wms.Auth.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Wms.BuildingBlocks.Infrastructure\Wms.BuildingBlocks.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider Postgres (UseNpgsql) + snake_case. Npgsql != cloud SDK -> FF#1 aman. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <!-- RS256 JWT signing (ADR-0016): JwtSecurityTokenHandler + SigningCredentials(RsaSecurityKey).
+         Private key via ISecretProvider (port). Microsoft.IdentityModel.* = abstraction crypto,
+         BUKAN cloud SDK (FF#1 aman). 7.1.2 = match closure transitive JwtBearer (BuildingBlocks.Web). -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

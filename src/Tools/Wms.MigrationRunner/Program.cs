@@ -11,6 +11,10 @@ using Wms.Outbound.Infrastructure.DependencyInjection;
 using Wms.Outbound.Infrastructure.Persistence;
 using Wms.MasterData.Infrastructure.DependencyInjection;
 using Wms.MasterData.Infrastructure.Persistence;
+using Wms.Auth.Infrastructure.DependencyInjection;
+using Wms.Auth.Infrastructure.Persistence;
+using Wms.Auth.Infrastructure.Security;
+using Wms.Platform.Local.DependencyInjection;
 
 // What: MigrationRunner — env-neutral migration applier (ADR-0010 amendment)
 // Why: menutup lubang operasional "N migration assembly diterapkan bagaimana" pada
@@ -44,12 +48,29 @@ var masterDataConnection = builder.Configuration.GetConnectionString("masterdata
 
 builder.Services.AddMasterDataInfrastructure(masterDataConnection);
 
+var authConnection = builder.Configuration.GetConnectionString("authdb")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:authdb tidak diset (appsettings.json / env / --ConnectionStrings:authdb=...).");
+
+builder.Services.AddAuthInfrastructure(authConnection);
+// IPasswordHasher (Argon2id) untuk seed admin Auth — DB-prep tool yang sama meng-apply migrasi & seed.
+builder.Services.AddLocalPasswordHasher();
+
 using var host = builder.Build();
 
 await ApplyMigrationsAsync<InboundDbContext>(host, "Inbound");
 await ApplyMigrationsAsync<InventoryDbContext>(host, "Inventory");
 await ApplyMigrationsAsync<OutboundDbContext>(host, "Outbound");
 await ApplyMigrationsAsync<MasterDataDbContext>(host, "MasterData");
+await ApplyMigrationsAsync<AuthDbContext>(host, "Auth");
+
+// What: seed reference/admin Auth (ADR-0012) — DB-prep = migrate schema + seed seed-data, idempoten.
+using (var scope = host.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await scope.ServiceProvider.GetRequiredService<AuthSeeder>().SeedAsync();
+    logger.LogInformation("Auth: seed permission catalog + admin selesai.");
+}
 
 return 0;
 

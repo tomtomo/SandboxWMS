@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Modules\Auth\Wms.Auth.Api\Wms.Auth.Api.csproj" />
+    <ProjectReference Include="..\..\..\Modules\Auth\Wms.Auth.Infrastructure\Wms.Auth.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Platform\Wms.Platform.Local\Wms.Platform.Local.csproj" />
+    <ProjectReference Include="..\..\..\Platform\Wms.Platform.Hosting\Wms.Platform.Hosting.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

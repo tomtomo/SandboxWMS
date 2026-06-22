@@ -25,15 +25,16 @@ public class ArchitectureFitnessFunctions
     ];
 
     // Single source: tiap modul → layer (project) yang sudah lahir. Tambah modul/layer di sini.
-    // Outbound = full-5 sejak Phase 03c. MasterData = full-6 sejak Phase 04a (supporting authority:
-    // gRPC read-API + cache-aside) — SATU-SATUNYA modul dengan layer Grpc (.proto read-API sinkron,
-    // ADR-0006/0009); Grpc bukan "internal layer" (boleh di-cross-ref antar-modul, FF#3).
+    // Outbound = full-5 sejak Phase 03c. MasterData = full-6 sejak Phase 04a; Auth = full-6 sejak Phase 04b
+    // (supporting authority: gRPC read-API + cache-aside). Grpc bukan "internal layer" (boleh di-cross-ref
+    // antar-modul, FF#3) — .proto read-API sinkron (ADR-0006/0009).
     private static readonly Dictionary<string, string[]> ModuleLayers = new()
     {
         ["Inbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
         ["Inventory"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
         ["Outbound"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts"],
         ["MasterData"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts", "Grpc"],
+        ["Auth"] = ["Domain", "Application", "Infrastructure", "Api", "Contracts", "Grpc"],
     };
 
     // "internals" = layer selain Contracts; Contracts = published language yang BOLEH di-cross-ref.

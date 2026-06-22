@@ -42,6 +42,12 @@ builder.Services.AddConsumerDeadLettering();
 builder.Services.AddHttpContextCurrentUser();
 builder.Services.AddLocalAuditing();
 
+// Phase 04b: validasi user JWT OFFLINE (ADR-0016 alg-pin RS256) — public key via ISecretProvider (env
+// AppHost / ephemeral Local). Token valid → HttpContext.User terisi → ICurrentUser identitas NYATA (ganti
+// anonymous) untuk request REST. Konsumer event tetap origin-MESIN → SYSTEM (ADR-0027). authZ deferred.
+builder.Services.AddLocalSecretProvider();
+builder.Services.AddWmsJwtBearer();
+
 // Phase 04a: gRPC read-API client MasterData (snapshot uom orderLines, ADR-0011/0014) + RESILIENCE
 // split-timeout (ADR-0020: pipeline "wms-grpc" 30s) + s2s token (ADR-0021: Local stub). Address via
 // Aspire service discovery ("masterdata"); h2c insecure + CallCredentials (bearer+correlation).
@@ -63,6 +69,9 @@ var app = builder.Build();
 
 // correlation-id sedini mungkin → tiap log/trace/audit request berbagi korelator (ADR-0024 baseline)
 app.UseCorrelationId();
+
+// authentication: validasi bearer offline → isi principal sebelum endpoint/handler (ICurrentUser nyata, 04b)
+app.UseAuthentication();
 
 // What: consumer subscribe-point (ADR-0029) — sambungkan dispatcher Outbound ke rail Local, PER event.
 // Why: di Local 3-proses ini IDLE — cross-process delivery menyusul via adapter broker (Phase 05/06).

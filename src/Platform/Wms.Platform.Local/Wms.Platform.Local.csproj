@@ -8,6 +8,10 @@
     <!-- LocalDeadLetterStore menulis ke Postgres via DbContext ambient. EF Core (core)
          cukup — Set<T>+SaveChanges, tanpa relational mapping di sini. Nol cloud SDK. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!-- Argon2id KDF (Phase 04b, ADR-0016) untuk Argon2idPasswordHasher (adapter IPasswordHasher).
+         Pure-managed (OWASP Password Storage) — bukan cloud SDK (FF#1 aman). LocalSecretProvider
+         pakai BCL RSA (nol package). -->
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
   </ItemGroup>
 
   <PropertyGroup>
