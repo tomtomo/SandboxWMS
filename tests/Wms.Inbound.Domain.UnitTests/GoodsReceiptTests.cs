@@ -299,6 +299,23 @@ public class GoodsReceiptTests
     }
 
     [Fact]
+    public void Confirm_carries_supplier_id_in_event()
+    {
+        // ADR-0030: supplierId = data domain GoodsReceipt → di-bawa GoodsReceiptConfirmed
+        // (Reporting ReceivingSummary per-supplier). Enrichment non-breaking.
+        var gr = GoodsReceipt.Create(
+            GoodsReceiptId.New(), "WH-JKT", [new ExpectedLineInput("SKU-1", 10, "carton")],
+            supplierId: "SUP-7").Value;
+        gr.ScanItem("SKU-1", 10, null, null, LineStatus.Good);
+        gr.DeclareScanComplete();
+
+        gr.Confirm();
+
+        var confirmed = gr.DomainEvents.OfType<GoodsReceiptConfirmed>().Single();
+        Assert.Equal("SUP-7", confirmed.SupplierId);
+    }
+
+    [Fact]
     public void Confirm_with_unresolved_discrepancy_fails_and_raises_no_event()
     {
         // invariant ADR-0013: tiap discrepancy WAJIB punya resolution sebelum Confirm

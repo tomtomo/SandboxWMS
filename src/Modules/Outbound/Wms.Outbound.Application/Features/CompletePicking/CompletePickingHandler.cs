@@ -2,6 +2,7 @@ using System.Text.Json;
 using MediatR;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
+using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Domain.Results;
 using Wms.Outbound.Application.Abstractions;
 using Wms.Outbound.Contracts;
@@ -21,6 +22,7 @@ public sealed class CompletePickingHandler(
     IPickingTaskRepository pickingTaskRepository,
     IWaveRepository waveRepository,
     IIntegrationEventOutbox outbox,
+    ICurrentUser currentUser,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CompletePickingCommand, Result>
 {
@@ -35,8 +37,10 @@ public sealed class CompletePickingHandler(
         if (complete.IsFailure)
             return complete;
 
+        // operatorId = aktor penyelesai pick (ICurrentUser, ADR-0030) — di-source di sini, BUKAN di domain
+        // event (PickingCompleted nol-aktor). Origin-mesin/authZ-deferred → SYSTEM (ADR-0027) sampai 07a.
         foreach (var completed in task.DomainEvents.OfType<PickingCompleted>())
-            outbox.Enqueue(ToEnvelope(completed));
+            outbox.Enqueue(ToEnvelope(completed, currentUser.UserId));
         task.ClearDomainEvents();
 
         // gate Wave→Ready (overview §C5): wave siap saat SEMUA PickingTask-nya Completed. Domain (MarkReady)
@@ -59,10 +63,11 @@ public sealed class CompletePickingHandler(
         return Result.Success();
     }
 
-    // What: Message Translator (EIP) — domain event → integration event envelope (ADR-0005/0028)
-    // How: PickingCompleted (domain) → PickingCompletedV1 (contract); EventId baru = identitas outbox/
-    // idempotency (Inventory dedup via Inbox atas EventId ini → Stock Allocated→Picked).
-    private static MessageEnvelope ToEnvelope(PickingCompleted completed)
+    // What: Message Translator (EIP) — domain event → integration event envelope (ADR-0005/0028/0030)
+    // How: PickingCompleted (domain) → PickingCompletedV1 (contract) + operatorId (aktor, dari handler);
+    // EventId baru = identitas outbox/idempotency (Inventory dedup via Inbox → Stock Allocated→Picked;
+    // Reporting → OperatorActivity pick-count per operator).
+    private static MessageEnvelope ToEnvelope(PickingCompleted completed, string operatorId)
     {
         var payload = new PickingCompletedV1(
             completed.WaveId,
@@ -71,7 +76,8 @@ public sealed class CompletePickingHandler(
             completed.Sku,
             completed.Batch,
             completed.Qty,
-            completed.StagingLocationId);
+            completed.StagingLocationId,
+            operatorId);
 
         return new MessageEnvelope(
             EventId: Guid.NewGuid(),

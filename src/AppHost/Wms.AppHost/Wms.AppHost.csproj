@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\Hosts\Local\Wms.Outbound.Host.Local\Wms.Outbound.Host.Local.csproj" />
     <ProjectReference Include="..\..\Hosts\Local\Wms.MasterData.Host.Local\Wms.MasterData.Host.Local.csproj" />
     <ProjectReference Include="..\..\Hosts\Local\Wms.Auth.Host.Local\Wms.Auth.Host.Local.csproj" />
+    <ProjectReference Include="..\..\Hosts\Local\Wms.Reporting.Host.Local\Wms.Reporting.Host.Local.csproj" />
   </ItemGroup>
 
 </Project>

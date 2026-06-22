@@ -42,6 +42,14 @@ public class ArchitectureFitnessFunctions
 
     private static readonly string[] ModuleNames = [.. ModuleLayers.Keys];
 
+    // Collapsed modules (blueprint §3 right-sizing): pure-consumer 1-project TANPA layer suffix (assembly
+    // "Wms.<Module>"). Reporting = collapsed pertama (ADR-0017). FF#1 (no cloud SDK) + FF#3 (hanya ref
+    // *.Contracts modul lain) tetap berlaku; FF#2/#5/#8 (layer-spesifik) tak relevan (tak ada layer terpisah).
+    private static readonly string[] CollapsedModules = ["Reporting"];
+
+    private static Assembly[] CollapsedModuleAssemblies() =>
+        [.. CollapsedModules.Select(module => Load($"Wms.{module}"))];
+
     private static Assembly[] ModuleAssemblies() =>
         [.. ModuleLayers.SelectMany(m => m.Value.Select(layer => Load($"Wms.{m.Key}.{layer}")))];
 
@@ -60,7 +68,7 @@ public class ArchitectureFitnessFunctions
     [Fact]
     public void Ff1_modules_and_buildingblocks_have_no_cloud_sdk()
     {
-        foreach (var asm in BuildingBlocks.Concat(ModuleAssemblies()))
+        foreach (var asm in BuildingBlocks.Concat(ModuleAssemblies()).Concat(CollapsedModuleAssemblies()))
         {
             var result = Types.InAssembly(asm)
                 .ShouldNot().HaveDependencyOnAny(CloudSdkNamespaces)
@@ -118,6 +126,25 @@ public class ArchitectureFitnessFunctions
 
                 Assert.True(result.IsSuccessful, Describe(asm, "depend ke internal modul lain", result));
             }
+        }
+
+        // collapsed modules (mis. Reporting): pure-consumer 1-project — hanya boleh ref *.Contracts modul
+        // lain (aturan FF#3 sama). Tiap modul full = "lain"; collapsed tak punya internal yang di-ref balik.
+        foreach (var collapsed in CollapsedModules)
+        {
+            string[] otherInternals = ModuleLayers
+                .SelectMany(other => InternalLayers
+                    .Where(layer => other.Value.Contains(layer))
+                    .Select(layer => $"Wms.{other.Key}.{layer}"))
+                .ToArray();
+
+            var asm = Load($"Wms.{collapsed}");
+            var result = Types.InAssembly(asm)
+                .ShouldNot().HaveDependencyOnAny(otherInternals)
+                .GetResult();
+
+            Assert.True(result.IsSuccessful,
+                Describe(asm, "collapsed module depend ke internal modul lain", result));
         }
     }
 
