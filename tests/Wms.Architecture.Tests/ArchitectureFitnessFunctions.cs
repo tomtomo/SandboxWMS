@@ -43,9 +43,10 @@ public class ArchitectureFitnessFunctions
     private static readonly string[] ModuleNames = [.. ModuleLayers.Keys];
 
     // Collapsed modules (blueprint §3 right-sizing): pure-consumer 1-project TANPA layer suffix (assembly
-    // "Wms.<Module>"). Reporting = collapsed pertama (ADR-0017). FF#1 (no cloud SDK) + FF#3 (hanya ref
-    // *.Contracts modul lain) tetap berlaku; FF#2/#5/#8 (layer-spesifik) tak relevan (tak ada layer terpisah).
-    private static readonly string[] CollapsedModules = ["Reporting"];
+    // "Wms.<Module>"). Reporting = collapsed pertama (ADR-0017), Notification menyusul (Phase 04d). FF#1
+    // (no cloud SDK) + FF#3 (hanya ref *.Contracts/*.Grpc modul lain) tetap berlaku; FF#2/#5/#8
+    // (layer-spesifik) tak relevan (tak ada layer terpisah).
+    private static readonly string[] CollapsedModules = ["Reporting", "Notification"];
 
     private static Assembly[] CollapsedModuleAssemblies() =>
         [.. CollapsedModules.Select(module => Load($"Wms.{module}"))];
