@@ -1,0 +1,49 @@
+@page "/"
+@inject AuthApiClient Auth
+@inject TokenStore TokenStore
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Login</PageTitle>
+<MudText Typo="Typo.h4" GutterBottom="true">Login</MudText>
+
+@if (TokenStore.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Success">
+        Login sebagai <b>@TokenStore.Username</b> (userId: @TokenStore.UserId).
+    </MudAlert>
+}
+else
+{
+    <MudPaper Class="pa-6" Style="max-width:420px">
+        <MudTextField @bind-Value="_username" Label="Username" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_password" Label="Password" Variant="Variant.Outlined"
+                      InputType="InputType.Password" Class="mb-3" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                   OnClick="DoLogin" Disabled="_busy">
+            @(_busy ? "..." : "Login")
+        </MudButton>
+    </MudPaper>
+}
+
+@code {
+    private string _username = "admin";
+    private string _password = string.Empty;
+    private bool _busy;
+
+    private async Task DoLogin()
+    {
+        _busy = true;
+        var error = await Auth.LoginAsync(_username, _password);
+        _busy = false;
+        if (error is null)
+        {
+            Snackbar.Add("Login sukses.", Severity.Success);
+            Nav.NavigateTo("/goods-receipts");
+        }
+        else
+        {
+            Snackbar.Add(error, Severity.Error);
+        }
+    }
+}

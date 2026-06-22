@@ -1,0 +1,60 @@
+@page "/notifications"
+@inject NotificationApiClient NotificationsApi
+@inject TokenStore TokenStore
+@inject ISnackbar Snackbar
+
+<PageTitle>Notifications</PageTitle>
+<MudText Typo="Typo.h4" GutterBottom="true">In-App Notifications</MudText>
+
+@if (!TokenStore.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning">Login dulu untuk akses.</MudAlert>
+}
+else
+{
+    <MudButton StartIcon="@Icons.Material.Filled.Refresh" OnClick="Load" Class="mb-4">Refresh</MudButton>
+    <MudTable Items="_rows" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Title</MudTh>
+            <MudTh>Body</MudTh>
+            <MudTh>Event</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>When</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Title">@context.Title</MudTd>
+            <MudTd DataLabel="Body">@context.Body</MudTd>
+            <MudTd DataLabel="Event">@context.EventType</MudTd>
+            <MudTd DataLabel="Status">@context.Status</MudTd>
+            <MudTd DataLabel="When">@context.QueuedAt.LocalDateTime.ToString("g")</MudTd>
+            <MudTd>
+                @if (context.Status != "Read")
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                               OnClick="@(() => MarkRead(context.DeliveryId))">Mark read</MudButton>
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private IReadOnlyList<InAppNotificationRow> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        if (!TokenStore.IsAuthenticated || TokenStore.UserId is null)
+            return;
+        _rows = await NotificationsApi.InboxAsync(TokenStore.UserId);
+    }
+
+    private async Task MarkRead(Guid deliveryId)
+    {
+        await NotificationsApi.MarkReadAsync(deliveryId);
+        Snackbar.Add("Ditandai dibaca.", Severity.Success);
+        await Load();
+    }
+}

@@ -1,0 +1,38 @@
+@inherits LayoutComponentBase
+@inject TokenStore TokenStore
+@inject NavigationManager Nav
+
+@* What: MudBlazor providers — WAJIB sekali di root layout (theme/popover/dialog/snackbar) *@
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h6" Class="mr-6">TomSandboxWMS</MudText>
+        <MudButton Href="/" Color="Color.Inherit">Login</MudButton>
+        <MudButton Href="/goods-receipts" Color="Color.Inherit">Goods Receipts</MudButton>
+        <MudButton Href="/stock" Color="Color.Inherit">Stock &amp; Reports</MudButton>
+        <MudButton Href="/notifications" Color="Color.Inherit">Notifications</MudButton>
+        <MudSpacer />
+        @if (TokenStore.IsAuthenticated)
+        {
+            <MudText Class="mr-3">@TokenStore.Username</MudText>
+            <MudButton Color="Color.Inherit" OnClick="Logout">Logout</MudButton>
+        }
+    </MudAppBar>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private void Logout()
+    {
+        TokenStore.Clear();
+        Nav.NavigateTo("/");
+    }
+}

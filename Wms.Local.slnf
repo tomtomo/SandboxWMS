@@ -3,6 +3,8 @@
     "path": "Wms.sln",
     "projects": [
       "src\\AppHost\\Wms.AppHost\\Wms.AppHost.csproj",
+      "src\\Gateway\\Wms.Gateway\\Wms.Gateway.csproj",
+      "src\\WebUI\\Wms.WebUI\\Wms.WebUI.csproj",
       "src\\BuildingBlocks\\Wms.BuildingBlocks.Domain\\Wms.BuildingBlocks.Domain.csproj",
       "src\\BuildingBlocks\\Wms.BuildingBlocks.Application\\Wms.BuildingBlocks.Application.csproj",
       "src\\BuildingBlocks\\Wms.BuildingBlocks.Infrastructure\\Wms.BuildingBlocks.Infrastructure.csproj",
