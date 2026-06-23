@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Wms.BuildingBlocks.Web.Correlation;
 using Wms.BuildingBlocks.Web.ErrorHandling;
+using Wms.BuildingBlocks.Web.Idempotency;
 using Wms.BuildingBlocks.Web.Security;
 using Wms.MasterData.Api;
 using Wms.MasterData.Api.Grpc;
@@ -30,6 +31,7 @@ builder.Services.AddMasterDataApplication();
 builder.Services.AddLocalCaching();           // ICacheStore untuk cache-aside read-API
 builder.Services.AddHttpContextCurrentUser(); // identitas operator REST CRUD → IAuditable (created_by)
 builder.Services.AddLocalAuditing();
+builder.Services.AddLocalApiIdempotencyStore(); // ADR-0032 (reference host) — store Idempotency-Key replay
 
 // Phase 04b: validasi user JWT OFFLINE (ADR-0016 alg-pin RS256) — public key via ISecretProvider (env
 // AppHost / ephemeral Local). Token valid → HttpContext.User terisi → ICurrentUser identitas NYATA (ganti
@@ -44,6 +46,10 @@ var app = builder.Build();
 
 // correlation-id sedini mungkin → tiap log/trace/audit berbagi korelator (ADR-0024 baseline)
 app.UseCorrelationId();
+
+// idempotency-key (ADR-0032): mutating REST retry-safe — replay response tersimpan / capture+simpan.
+// Setelah correlation (korelasi ter-tag), sebelum authentication (key global, isolasi per-user → 07a authZ).
+app.UseIdempotencyKey();
 
 // authentication: validasi bearer offline → isi principal sebelum endpoint/handler (ICurrentUser nyata, 04b)
 app.UseAuthentication();
