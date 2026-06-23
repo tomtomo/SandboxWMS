@@ -95,14 +95,16 @@ public sealed class MasterDataReadService(IMasterDataReader reader) : MasterData
         return reply;
     }
 
-    // What: mapping eksplisit domain LocationType → proto LocationType (BUKAN ordinal)
+    // What: mapping eksplisit domain LocationType → proto LocationType (BUKAN ordinal) — fail-loud default
+    // Why: domain LocationType baru yang belum ter-map = crash early (ADR-0019), bukan diam jadi
+    // Unspecified (yang consumer baca sebagai NotFound) → masking nilai valid-tapi-salah.
     private static ProtoLocationType ToProto(DomainLocationType type) => type switch
     {
         DomainLocationType.ReceivingArea => ProtoLocationType.ReceivingArea,
         DomainLocationType.Rack => ProtoLocationType.Rack,
         DomainLocationType.QuarantineArea => ProtoLocationType.QuarantineArea,
         DomainLocationType.StagingArea => ProtoLocationType.StagingArea,
-        _ => ProtoLocationType.Unspecified,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "LocationType tak ter-map ke proto"),
     };
 
     // What: mapping eksplisit proto LocationType → domain (null untuk Unspecified/unknown → NotFound)

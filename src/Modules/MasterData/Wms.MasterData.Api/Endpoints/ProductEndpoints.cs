@@ -7,6 +7,7 @@ using Wms.BuildingBlocks.Web.ErrorHandling;
 using Wms.MasterData.Application.Abstractions;
 using Wms.MasterData.Application.Features.CreateProduct;
 using Wms.MasterData.Application.Features.DeactivateProduct;
+using Wms.MasterData.Domain;
 
 namespace Wms.MasterData.Api.Endpoints;
 
@@ -30,7 +31,7 @@ public sealed class ProductEndpoints : IEndpoint
                 cancellationToken);
 
             return result.IsSuccess
-                ? Results.Created($"/products/{result.Value}", new { sku = result.Value })
+                ? Results.Created($"/products/{result.Value}", new { id = result.Value })
                 : result.ToProblemDetails();
         });
 
@@ -44,7 +45,7 @@ public sealed class ProductEndpoints : IEndpoint
         group.MapGet("/{sku}", async (string sku, IMasterDataReader reader, CancellationToken cancellationToken) =>
         {
             var product = await reader.GetProductAsync(sku, cancellationToken);
-            return product is null ? Results.NotFound() : Results.Ok(product);
+            return product is null ? ProductErrors.NotFound.ToProblemDetails() : Results.Ok(product);
         });
     }
 }

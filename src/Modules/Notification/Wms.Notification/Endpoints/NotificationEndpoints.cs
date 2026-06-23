@@ -39,8 +39,7 @@ public static class NotificationEndpoints
             string userId, NotificationDbContext db,
             int? page, int? pageSize, CancellationToken cancellationToken) =>
         {
-            var safePage = Math.Max(1, page ?? 1);
-            var safeSize = Math.Clamp(pageSize ?? 20, 1, 100);
+            var (safePage, safeSize) = PageRequest.From(page, pageSize);
 
             var query = db.Deliveries.AsNoTracking()
                 .Where(delivery => delivery.UserId == userId

@@ -59,6 +59,34 @@ public sealed class AuthFlowTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task Concurrent_refresh_does_not_fork_rotation_chain()
+    {
+        await using var auth = await BuildSeededAuthAsync();
+
+        var login = await SendAsync(auth, new LoginCommand("admin", AdminPassword));
+        Assert.True(login.IsSuccess);
+        var refreshToken = login.Value.RefreshToken;
+
+        // dua refresh PARALEL atas token yang SAMA (request-concurrency, DbContext berbeda per scope).
+        // Tanpa optimistic concurrency token (ADR-0031): keduanya baca token aktif → dua successor aktif
+        // (rotation-fork → replay-detection defeat). Dengan xmin: hanya satu commit; yang lain Conflict/rollback.
+        var results = await Task.WhenAll(
+            SendAsync(auth, new RefreshCommand(refreshToken)),
+            SendAsync(auth, new RefreshCommand(refreshToken)));
+
+        // tepat satu refresh sukses (pemenang race) — tak pernah dua (loser → concurrency.conflict atau,
+        // bila terbaca setelah commit, reuse-detection not_active). Liveness: satu selalu menang.
+        Assert.Equal(1, results.Count(result => result.IsSuccess));
+
+        // INVARIAN no-fork (ADR-0031): tak pernah ada >1 refresh token aktif sekaligus — inti yang xmin tutup.
+        var now = DateTimeOffset.UtcNow;
+        using var scope = auth.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var activeTokens = (await db.RefreshTokens.ToListAsync()).Count(token => token.IsActive(now));
+        Assert.True(activeTokens <= 1, $"rotation-fork: {activeTokens} refresh token aktif (invarian ≤ 1).");
+    }
+
+    [Fact]
     public async Task Logout_revokes_refresh_token_idempotently()
     {
         await using var auth = await BuildSeededAuthAsync();

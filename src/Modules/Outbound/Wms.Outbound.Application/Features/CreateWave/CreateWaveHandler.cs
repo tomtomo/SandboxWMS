@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MediatR;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
@@ -59,12 +58,6 @@ public sealed class CreateWaveHandler(
             .ToList();
 
         var payload = new WaveReleasedV1(waveId, lines);
-        return new MessageEnvelope(
-            EventId: Guid.NewGuid(),
-            LogicalName: WaveReleasedV1.LogicalName,
-            OccurredAt: DateTimeOffset.UtcNow,
-            Payload: JsonSerializer.Serialize(payload),
-            Traceparent: null,
-            Tracestate: null);
+        return MessageEnvelope.For(WaveReleasedV1.LogicalName, payload);
     }
 }

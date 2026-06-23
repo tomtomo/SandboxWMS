@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Domain.Results;
@@ -73,12 +72,6 @@ public sealed class WaveReleasedConsumer(
     private static MessageEnvelope ToEnvelope(Guid waveId, IReadOnlyList<StockAllocationV1> allocations)
     {
         var payload = new StockAllocatedV1(waveId, allocations);
-        return new MessageEnvelope(
-            EventId: Guid.NewGuid(),
-            LogicalName: StockAllocatedV1.LogicalName,
-            OccurredAt: DateTimeOffset.UtcNow,
-            Payload: JsonSerializer.Serialize(payload),
-            Traceparent: null,
-            Tracestate: null);
+        return MessageEnvelope.For(StockAllocatedV1.LogicalName, payload);
     }
 }

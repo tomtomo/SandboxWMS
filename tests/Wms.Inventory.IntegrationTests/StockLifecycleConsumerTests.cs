@@ -170,6 +170,58 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task Concurrent_wave_released_allocates_stock_to_exactly_one_wave()
+    {
+        await using var sp = await BuildInventoryAsync();
+
+        // SATU unit Available SKU-1 — dua wave bersaing merebutnya (request-concurrency, scope/DbContext beda).
+        var stockId = await SeedAsync(sp, StockStatus.Available, "SKU-1", "B1", new DateOnly(2026, 12, 31), 10);
+        var waveA = Guid.NewGuid();
+        var waveB = Guid.NewGuid();
+
+        // Tanpa optimistic concurrency (ADR-0031): keduanya baca Available → dua-duanya emit StockAllocated
+        // meng-klaim stock yang SAMA (lost-update → dua wave dapat PickingTask atas 1 unit fisik = fork).
+        // Dengan xmin: satu commit; yang kalah → ConcurrencyConflictException (consumer path → DLQ di prod).
+        await Task.WhenAll(
+            AllocateWaveAsync(sp, waveA),
+            AllocateWaveAsync(sp, waveB));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+        // stock ter-alokasi (satu pemenang) ke tepat satu wave
+        var stock = await db.Stocks.SingleAsync(s => s.Id == new StockId(stockId));
+        Assert.Equal(StockStatus.Allocated, stock.Status);
+        Assert.True(stock.AllocatedToWaveId == waveA || stock.AllocatedToWaveId == waveB);
+
+        // INVARIAN no-fork (ADR-0031): TEPAT SATU StockAllocated meng-klaim stockId ini (bukan dua) — tanpa
+        // xmin, dua racer akan dua-duanya commit klaim atas unit fisik yang sama (lost-update terbukti = 2).
+        var allocatedEvents = await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockAllocatedV1.LogicalName).ToListAsync();
+        var claimsForStock = allocatedEvents
+            .Select(m => JsonSerializer.Deserialize<StockAllocatedV1>(m.Payload)!)
+            .SelectMany(payload => payload.Allocations)
+            .Count(allocation => allocation.StockId == stockId);
+        Assert.Equal(1, claimsForStock);
+    }
+
+    // jalankan WaveReleasedConsumer untuk satu wave; serap ConcurrencyConflictException (racer yang kalah →
+    // di prod di-retry/DLQ oleh ConsumerDeadLetterPipeline). Invarian dibuktikan via state + outbox, bukan hasil call.
+    private static async Task AllocateWaveAsync(ServiceProvider sp, Guid waveId)
+    {
+        try
+        {
+            using var scope = sp.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<WaveReleasedConsumer>()
+                .HandleAsync(Guid.NewGuid(), new WaveReleasedV1(waveId, [new WaveLineV1(Guid.NewGuid(), "SKU-1", 10)]));
+        }
+        catch (ConcurrencyConflictException)
+        {
+            // expected untuk racer yang kalah (ADR-0031) — di prod ConsumerDeadLetterPipeline retry/DLQ.
+        }
+    }
+
+    [Fact]
     public async Task CompletePutaway_emits_putaway_completed_with_operator()
     {
         await using var sp = await BuildInventoryAsync();

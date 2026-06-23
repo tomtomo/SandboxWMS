@@ -10,8 +10,19 @@ namespace Wms.BuildingBlocks.Infrastructure.Messaging;
 // tak tahu EF — ini sisi Infrastructure dari port.
 internal sealed class EfUnitOfWork(DbContext db) : IUnitOfWork
 {
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-        => db.SaveChangesAsync(cancellationToken);
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            // optimistic concurrency token (xmin) stale → terjemahkan ke abstraksi Application (ADR-0031)
+            // supaya TransactionBehavior (nol-EF) map ke Result(Error.Conflict) — Application tak tahu EF.
+            throw new ConcurrencyConflictException(exception);
+        }
+    }
 
     // What: adapter transaksi eksplisit (Hexagonal port→adapter; ADR-0019)
     // Why: TransactionBehavior mengontrol commit/rollback berdasarkan Result — EF

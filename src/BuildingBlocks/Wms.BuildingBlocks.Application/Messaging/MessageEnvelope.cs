@@ -1,6 +1,10 @@
+using System.Text.Json;
+
 namespace Wms.BuildingBlocks.Application.Messaging;
 
 // What: Message Envelope (EIP) + cross-broker trace-context seam (ADR-0024)
+// TODO-07B-TRACECONTEXT (ADR-0024): Traceparent/Tracestate kini null saat publish; diisi dari
+// Activity.Current di OutboxExtensions.AddToOutbox saat 07b (hop broker lintas-proses nyata).
 // Why: metadata transport (id, waktu, nama logical, trace) dipisah dari payload
 // bisnis supaya rail messaging netral terhadap broker konkret. traceparent/tracestate
 // (W3C Trace Context) ikut di sini agar trace tetap utuh menembus hop broker —
@@ -14,4 +18,19 @@ public sealed record MessageEnvelope(
     DateTimeOffset OccurredAt,
     string Payload,
     string? Traceparent,
-    string? Tracestate);
+    string? Tracestate)
+{
+    // What: Factory Method (GoF) — buat envelope dari integration event (seam translation ADR-0005)
+    // Why: 7 translator per-handler sebelumnya menduplikasi pola id-baru/now/serialize — disatukan agar
+    // EventId/OccurredAt/serialisasi konsisten DAN jadi SATU seam untuk inject Activity.Current (07b) +
+    // TimeProvider (07). OutboxDispatcher TIDAK pakai ini (ia rehydrate row persisted, bukan event baru).
+    // How: Serialize<T> by tipe compile-time (payload selalu tipe konkret di call-site, nol polimorfisme).
+    public static MessageEnvelope For<T>(string logicalName, T payload) =>
+        new(
+            EventId: Guid.NewGuid(),
+            LogicalName: logicalName,
+            OccurredAt: DateTimeOffset.UtcNow,
+            Payload: JsonSerializer.Serialize(payload),
+            Traceparent: null,  // TODO-07B-TRACECONTEXT (ADR-0024): capture Activity.Current di sini
+            Tracestate: null);
+}

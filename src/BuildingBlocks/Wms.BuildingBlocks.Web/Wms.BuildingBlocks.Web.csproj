@@ -17,6 +17,13 @@
     <PackageReference Include="Grpc.Core.Api" />
   </ItemGroup>
 
+  <!-- Grpc.Net.ClientFactory (Phase 04.5, UF-26): AddGrpcClient/ConfigureChannel untuk helper s2s
+       AddWmsInternalGrpcClient (Grpc/GrpcClientExtensions.cs) — satu titik wiring channel+credentials
+       dipakai semua host (pre-position TLS swap Phase 05). Microsoft/CNCF gRPC, bukan cloud SDK → FF#1 aman. -->
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+  </ItemGroup>
+
   <!-- JWT bearer offline validation (Phase 04b, ADR-0016): shared helper alg-pinned dipakai SEMUA host.
        JwtBearer = package terpisah (bukan shared framework); membawa Microsoft.IdentityModel.* (7.1.2)
        transitif untuk TokenValidationParameters/RsaSecurityKey. Abstraction crypto → FF#1 aman. -->

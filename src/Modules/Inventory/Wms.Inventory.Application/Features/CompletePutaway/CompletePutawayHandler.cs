@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MediatR;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
@@ -62,12 +61,6 @@ public sealed class CompletePutawayHandler(
         var payload = new PutawayCompletedV1(
             task.Id.Value, stock.Id.Value, stock.Sku, stock.WarehouseId, operatorId);
 
-        return new MessageEnvelope(
-            EventId: Guid.NewGuid(),
-            LogicalName: PutawayCompletedV1.LogicalName,
-            OccurredAt: DateTimeOffset.UtcNow,
-            Payload: JsonSerializer.Serialize(payload),
-            Traceparent: null,
-            Tracestate: null);
+        return MessageEnvelope.For(PutawayCompletedV1.LogicalName, payload);
     }
 }

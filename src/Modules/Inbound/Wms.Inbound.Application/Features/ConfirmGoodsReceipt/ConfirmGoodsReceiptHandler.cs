@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MediatR;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
@@ -61,27 +60,25 @@ public sealed class ConfirmGoodsReceiptHandler(
                 .Select(line => new RejectedLineV1(line.Sku, line.Quantity, ToReason(line.Reason)))
                 .ToList());
 
-        return new MessageEnvelope(
-            EventId: Guid.NewGuid(),
-            LogicalName: GRConfirmedV1.LogicalName,
-            OccurredAt: DateTimeOffset.UtcNow,
-            Payload: JsonSerializer.Serialize(payload),
-            Traceparent: null,
-            Tracestate: null);
+        return MessageEnvelope.For(GRConfirmedV1.LogicalName, payload);
     }
 
+    // What: ACL enum→wire translation (ADR-0005) — arm default FAIL-LOUD, bukan masking
+    // Why: LineStatus/RejectionReason baru yang belum ter-map = crash early (ADR-0019) di translator
+    // (.Application) → di-rollback TransactionBehavior, no event di-emit, Outbox tak korup. Masking ke
+    // "Good"/"ReturnToSupplier" men-fabrikasi nilai kontrak valid-tapi-salah → OnHand stock korup diam.
     private static string ToStatus(LineStatus status) => status switch
     {
         LineStatus.Good => "Good",
         LineStatus.QcHold => "QcHold",
         LineStatus.WrongItem => "WrongItem",
-        _ => "Good"
+        _ => throw new ArgumentOutOfRangeException(nameof(status), status, "LineStatus tak ter-map ke wire")
     };
 
     private static string ToReason(RejectionReason reason) => reason switch
     {
         RejectionReason.ReturnToSupplier => "ReturnToSupplier",
         RejectionReason.RejectExcess => "RejectExcess",
-        _ => "ReturnToSupplier"
+        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "RejectionReason tak ter-map ke wire")
     };
 }

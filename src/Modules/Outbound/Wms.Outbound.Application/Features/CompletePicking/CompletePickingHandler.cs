@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MediatR;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
@@ -15,9 +14,9 @@ namespace Wms.Outbound.Application.Features.CompletePicking;
 // PickingCompleted, single-aggregate fact) DAN gate agregasi Wave→Ready saat SEMUA task wave Completed.
 // PickingCompleted (domain) diterjemahkan ke PickingCompletedV1 (published language) → Outbox: Inventory
 // transisi Stock Allocated→Picked (ADR-0028). Gate Wave→Ready ditegakkan DOMAIN (wave.MarkReady); handler
-// hanya menyuplai himpunan task Completed (di-query) — NotAllPicked = belum siap (no-op), bukan error.
+// hanya menyuplai himpunan task Completed (di-query) — NotAllPicked/NotActive = belum/lewat Active (no-op).
 // How: load task → Complete(staging) → translate event → Enqueue Outbox → ClearDomainEvents. Load semua
-// PickingTask wave → completedIds → wave.MarkReady(completedIds) (swallow NotAllPicked). SaveChanges atomic.
+// PickingTask wave → completedIds → wave.MarkReady(completedIds) (swallow NotAllPicked/NotActive). SaveChanges atomic.
 public sealed class CompletePickingHandler(
     IPickingTaskRepository pickingTaskRepository,
     IWaveRepository waveRepository,
@@ -56,8 +55,9 @@ public sealed class CompletePickingHandler(
             .ToList();
 
         var ready = wave.MarkReady(completedIds);
-        if (ready.IsFailure && ready.Error != WaveErrors.NotAllPicked)
-            return ready; // NotAllPicked = belum semua task selesai → wave tetap Active (no-op)
+        if (ready.IsFailure && ready.Error != WaveErrors.NotAllPicked && ready.Error != WaveErrors.NotActive)
+            return ready; // NotAllPicked = belum semua task selesai (wave tetap Active); NotActive = wave sudah
+                          // lewat Active (mis. re-delivery idempotent) → keduanya no-op, task.Complete tetap commit
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Success();
@@ -79,12 +79,6 @@ public sealed class CompletePickingHandler(
             completed.StagingLocationId,
             operatorId);
 
-        return new MessageEnvelope(
-            EventId: Guid.NewGuid(),
-            LogicalName: PickingCompletedV1.LogicalName,
-            OccurredAt: DateTimeOffset.UtcNow,
-            Payload: JsonSerializer.Serialize(payload),
-            Traceparent: null,
-            Tracestate: null);
+        return MessageEnvelope.For(PickingCompletedV1.LogicalName, payload);
     }
 }

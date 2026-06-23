@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MediatR;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
@@ -55,12 +54,6 @@ public sealed class DispatchWaveHandler(
     private static MessageEnvelope ToEnvelope(ShipmentDispatched dispatched)
     {
         var payload = new ShipmentDispatchedV1(dispatched.WaveId.Value);
-        return new MessageEnvelope(
-            EventId: Guid.NewGuid(),
-            LogicalName: ShipmentDispatchedV1.LogicalName,
-            OccurredAt: DateTimeOffset.UtcNow,
-            Payload: JsonSerializer.Serialize(payload),
-            Traceparent: null,
-            Tracestate: null);
+        return MessageEnvelope.For(ShipmentDispatchedV1.LogicalName, payload);
     }
 }

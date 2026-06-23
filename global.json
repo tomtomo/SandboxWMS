@@ -1,4 +1,6 @@
 {
+  // SDK 10.0.301 = build-tooling saja; target framework tetap net8.0 (Directory.Build.props, ADR-0007 .NET 8 LTS).
+  // rollForward latestFeature → SDK 10.x dipakai untuk build; runtime/TFM TIDAK ikut naik (catatan plan Phase 04.5 §1).
   "sdk": {
     "version": "10.0.301",
     "rollForward": "latestFeature"

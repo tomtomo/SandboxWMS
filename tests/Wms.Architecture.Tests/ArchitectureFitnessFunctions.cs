@@ -224,30 +224,41 @@ public class ArchitectureFitnessFunctions
     {
         var violations = new List<string>();
 
+        // full modul: domain = assembly terpisah Wms.<Module>.Domain
         foreach (var module in ModuleNames)
-        {
-            var domainDir = Path.Combine(RepoRoot(), "src", "Modules", module, $"Wms.{module}.Domain");
-            if (!Directory.Exists(domainDir))
-                continue;
+            CollectDomainThrows(
+                Path.Combine(RepoRoot(), "src", "Modules", module, $"Wms.{module}.Domain"), violations);
 
-            foreach (var file in EnumerateDomainSources(domainDir))
-            {
-                var lines = File.ReadAllLines(file);
-                for (var line = 0; line < lines.Length; line++)
-                {
-                    var code = StripLineComment(lines[line]);
-                    if (!Regex.IsMatch(code, @"\bthrow\b"))
-                        continue;
-                    if (ProgrammerErrorAllowList.Any(code.Contains))
-                        continue;
-                    violations.Add($"{Path.GetFileName(file)}:{line + 1}: {lines[line].Trim()}");
-                }
-            }
-        }
+        // collapsed modul (Reporting/Notification): domain = subfolder Wms.<Module>/Domain (UF-10 — tutup
+        // coverage-illusion; FF#7 sebelumnya hanya iterate ModuleNames → modul collapsed luput dari scan).
+        foreach (var module in CollapsedModules)
+            CollectDomainThrows(
+                Path.Combine(RepoRoot(), "src", "Modules", module, $"Wms.{module}", "Domain"), violations);
 
         Assert.True(violations.Count == 0,
             "business `throw` di *.Domain — gunakan Result (ADR-0019):"
             + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    // scan SUMBER domain (di luar komentar) untuk statement `throw` business — dipakai full & collapsed module
+    private static void CollectDomainThrows(string domainDir, List<string> violations)
+    {
+        if (!Directory.Exists(domainDir))
+            return;
+
+        foreach (var file in EnumerateDomainSources(domainDir))
+        {
+            var lines = File.ReadAllLines(file);
+            for (var line = 0; line < lines.Length; line++)
+            {
+                var code = StripLineComment(lines[line]);
+                if (!Regex.IsMatch(code, @"\bthrow\b"))
+                    continue;
+                if (ProgrammerErrorAllowList.Any(code.Contains))
+                    continue;
+                violations.Add($"{Path.GetFileName(file)}:{line + 1}: {lines[line].Trim()}");
+            }
+        }
     }
 
     // allow-list throw programmer-error yang sah di domain (kosong: domain murni Result saat ini)
@@ -395,4 +406,184 @@ public class ArchitectureFitnessFunctions
     {
         public string? Address { get; set; }
     }
+
+    // ── Phase 04.5 hardening FFs (kunci konvensi load-bearing-tapi-unguarded; semua pass vs current) ──
+
+    // FF #10 — tak ada DbContext standalone di Wms.BuildingBlocks.Infrastructure (ADR-0010; InfrastructureModel.cs:10)
+    // What: infra tables (outbox/inbox/dead_letter/audit_log) di-MAP via extension ke DbContext MODUL, BUKAN
+    // context kernel sendiri — cegah kontaminasi PK lintas-service & jaga DB-per-service (ADR-0010). Tutup
+    // governance-overstatement (FF#10 di-klaim roadmap tapi absen). How: reflect assembly; assert nol tipe
+    // yang rantai base-nya memuat "DbContext" (string-match → tak butuh reference EF Core di test).
+    [Fact]
+    public void Ff10_buildingblocks_infrastructure_has_no_standalone_dbcontext()
+    {
+        var infrastructure = Load("Wms.BuildingBlocks.Infrastructure");
+        var allTypes = infrastructure.GetTypes();
+        // sanity: cegah vacuous pass bila assembly gagal load / kosong (konsisten FF#11)
+        Assert.True(allTypes.Length > 0, "Wms.BuildingBlocks.Infrastructure nol tipe — assembly load gagal?");
+        var dbContexts = allTypes
+            .Where(InheritsDbContext)
+            .Select(type => type.FullName ?? type.Name)
+            .ToList();
+
+        Assert.True(dbContexts.Count == 0,
+            "InfrastructureDbContext standalone DILARANG (FF#10, ADR-0010 — infra tables di-map ke DbContext modul):"
+            + Environment.NewLine + string.Join(Environment.NewLine, dbContexts));
+    }
+
+    private static bool InheritsDbContext(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+            if (current.Name == "DbContext")
+                return true;
+        return false;
+    }
+
+    // FF (error-code format) — tiap Error.Code match ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ (ADR-0019)
+    // What: Error.Code = kontrak transport publik (RFC7807 extensions errorCode + gRPC trailer) — bentuk
+    // {snake}.{snake} di-standardize agar client branch by kode stabil. Guard SHAPE saja (BUKAN prefix==
+    // aggregate — itu over-constrain; catalog sah spt 'auth.invalid_credentials' beda prefix). How: source-
+    // scan src untuk Error.<Type>("<code>", …) inline + catalog → validasi tiap code literal.
+    [Fact]
+    public void Ff_error_codes_follow_transport_format()
+    {
+        var codePattern = new Regex(@"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$");
+        var callPattern = new Regex("Error\\.(?:Validation|NotFound|Conflict|Unauthorized|Unexpected)\\(\"([^\"]+)\"");
+        var violations = new List<string>();
+        var scanned = 0;
+
+        foreach (var file in EnumerateSourceFiles(Path.Combine("src")))
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var match = callPattern.Match(StripLineComment(lines[i]));
+                if (!match.Success)
+                    continue;
+                scanned++;
+                if (!codePattern.IsMatch(match.Groups[1].Value))
+                    violations.Add($"{Path.GetFileName(file)}:{i + 1}: '{match.Groups[1].Value}' bukan format {{snake}}.{{snake}} (ADR-0019)");
+            }
+        }
+
+        // sanity: cegah vacuous pass bila regex/konvensi drift → nol Error.<Type>("…") ter-scan
+        Assert.True(scanned > 0, "tak ada Error.<Type>(\"…\") ter-scan — regex/konvensi drift?");
+        Assert.True(violations.Count == 0,
+            "Error.Code langgar format transport (ADR-0019):"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    // FF (LogicalName format) — tiap LogicalName match ^[a-z][a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$ (ADR-0023)
+    // What: LogicalName = identitas broker stabil {module}.{event}.v{N} + SemVer; FF#11 jaga channel-existence,
+    // FF ini jaga FORMAT-nya. How: reuse PublishedIntegrationEvents() (reflect const LogicalName).
+    [Fact]
+    public void Ff_logical_names_follow_versioned_format()
+    {
+        var pattern = new Regex(@"^[a-z][a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$");
+        var published = PublishedIntegrationEvents();
+        Assert.True(published.Count > 0, "tak ada tipe published ter-discover (cek konvensi const LogicalName).");
+
+        var violations = published
+            .Where(evt => !pattern.IsMatch(evt.LogicalName))
+            .Select(evt => $"{evt.TypeName} → '{evt.LogicalName}' bukan format {{module}}.{{event}}.v{{N}} (ADR-0023)")
+            .ToList();
+
+        Assert.True(violations.Count == 0,
+            "LogicalName langgar format (ADR-0023):"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    // FF (Inbox idempotency) — tiap tipe yang declare `const string HandlerType` WAJIB call HasProcessedAsync
+    // + MarkProcessed (Idempotent Receiver, ADR-0005). What: composite inbox key (event_id, handler_type) =
+    // load-bearing cegah silent double-processing; ceremony per-handler sebelumnya unguarded. How: source-scan
+    // src/Modules untuk file ber-`const string HandlerType` → assert mengandung kedua call.
+    [Fact]
+    public void Ff_inbox_consumers_guard_idempotency()
+    {
+        var violations = new List<string>();
+        var guarded = 0;
+        foreach (var file in EnumerateSourceFiles(Path.Combine("src", "Modules")))
+        {
+            var text = File.ReadAllText(file);
+            if (!text.Contains("const string HandlerType"))
+                continue;
+            guarded++;
+            if (!text.Contains("HasProcessedAsync") || !text.Contains("MarkProcessed"))
+                violations.Add($"{Path.GetFileName(file)}: declare HandlerType tapi tak lengkap HasProcessedAsync+MarkProcessed (ADR-0005)");
+        }
+
+        // sanity: cegah vacuous pass bila konvensi HandlerType berubah → nol consumer ter-scan
+        Assert.True(guarded > 0, "tak ada tipe ber-`const string HandlerType` ter-scan — konvensi drift?");
+        Assert.True(violations.Count == 0,
+            "Inbox idempotency guard tidak lengkap (ADR-0005):"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    // FF (dispatcher fail-loud) — tiap *IntegrationEventDispatcher: cek IsFailure → throw (rail DLQ load-bearing,
+    // ADR-0005/0029). What: dispatcher membungkus consumer; Result.Failure WAJIB jadi throw agar
+    // ConsumerDeadLetterPipeline tangkap → DLQ (bukan di-swallow). BUKAN extract helper (consumer sah-divergen).
+    // How: tiap baris `.IsFailure` (di luar komentar) → throw dalam 2 baris berikutnya.
+    [Fact]
+    public void Ff_integration_event_dispatchers_throw_on_failure()
+    {
+        var dispatchers = EnumerateSourceFiles(Path.Combine("src", "Modules"))
+            .Where(path => path.EndsWith("IntegrationEventDispatcher.cs", StringComparison.Ordinal))
+            .ToList();
+        Assert.True(dispatchers.Count > 0, "tak ada *IntegrationEventDispatcher ter-scan — cek konvensi nama.");
+
+        var violations = new List<string>();
+        foreach (var file in dispatchers)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (!StripLineComment(lines[i]).Contains(".IsFailure"))
+                    continue;
+                var window = string.Join(" ", lines.Skip(i).Take(3));
+                if (!window.Contains("throw"))
+                    violations.Add($"{Path.GetFileName(file)}:{i + 1}: cek IsFailure tanpa throw dalam 2 baris (ADR-0029)");
+            }
+        }
+
+        Assert.True(violations.Count == 0,
+            "dispatcher tak fail-loud pada consumer failure (ADR-0029):"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    // FF (REST host security) — host (non-collapsed) yang Map<Module>Endpoints WAJIB AddWmsJwtBearer +
+    // AddHttpContextCurrentUser (ADR-0016/0012). What: cegah host baru ship surface REST unauthenticated.
+    // Pure-consumer (collapsed: Reporting/Notification) EXEMPT — REST-nya seed/inbox read, authZ deferred 07a.
+    // How: scan src/Hosts/Local/*/Program.cs; abaikan MapDefaultEndpoints (health Aspire) via negative lookahead.
+    [Fact]
+    public void Ff_rest_hosts_require_jwt_and_current_user()
+    {
+        var hostsRoot = Path.Combine(RepoRoot(), "src", "Hosts", "Local");
+        var mapPattern = new Regex(@"Map(?!Default)\w+Endpoints\(\)");
+        var exemptHosts = CollapsedModules.Select(module => $"Wms.{module}.Host.Local").ToHashSet();
+        var violations = new List<string>();
+
+        foreach (var program in Directory.EnumerateFiles(hostsRoot, "Program.cs", SearchOption.AllDirectories))
+        {
+            var hostName = Path.GetFileName(Path.GetDirectoryName(program)!);
+            if (exemptHosts.Contains(hostName))
+                continue;
+
+            var text = File.ReadAllText(program);
+            if (!mapPattern.IsMatch(text))
+                continue; // bukan REST host (hanya MapDefaultEndpoints / pure messaging)
+
+            if (!text.Contains("AddWmsJwtBearer()") || !text.Contains("AddHttpContextCurrentUser()"))
+                violations.Add($"{hostName}: Map*Endpoints REST tanpa AddWmsJwtBearer()/AddHttpContextCurrentUser() (ADR-0016/0012)");
+        }
+
+        Assert.True(violations.Count == 0,
+            "REST host kurang setup auth (ADR-0016/0012):"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    // enumerasi sumber .cs di bawah <relativeDir> (exclude bin/obj) — dipakai FF source-scan Phase 04.5
+    private static IEnumerable<string> EnumerateSourceFiles(string relativeDir) =>
+        Directory.EnumerateFiles(Path.Combine(RepoRoot(), relativeDir), "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                           && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
 }

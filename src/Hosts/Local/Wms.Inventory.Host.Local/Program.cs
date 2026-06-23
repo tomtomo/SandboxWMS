@@ -1,5 +1,3 @@
-using Grpc.Core;
-using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.BuildingBlocks.Infrastructure.Resilience;
@@ -54,16 +52,7 @@ builder.Services.AddWmsJwtBearer();
 // stub). Address via Aspire service discovery ("masterdata"); h2c insecure + CallCredentials.
 builder.Services.AddGrpcResiliencePipeline();
 builder.Services.AddLocalServiceTokenProvider();
-builder.Services.AddGrpcClient<MasterDataReadApi.MasterDataReadApiClient>(options =>
-        options.Address = new Uri("http://masterdata"))
-    .ConfigureChannel((serviceProvider, channel) =>
-    {
-        channel.Credentials = ChannelCredentials.Create(
-            ChannelCredentials.Insecure,
-            ServiceAuthCallCredentials.Create(
-                serviceProvider.GetRequiredService<IServiceTokenProvider>(), audience: "masterdata"));
-        channel.UnsafeUseInsecureChannelCallCredentials = true;
-    });
+builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("http://masterdata", "masterdata");
 builder.Services.AddMasterDataLocationCatalog();
 
 var app = builder.Build();

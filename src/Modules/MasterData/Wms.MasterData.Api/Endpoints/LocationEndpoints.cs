@@ -13,7 +13,8 @@ namespace Wms.MasterData.Api.Endpoints;
 
 // What: REST endpoints resource Location (CRUD manajemen; ADR-0006)
 // Why: Type diterima sebagai STRING lalu di-parse ke LocationType (Enum.TryParse) — tak bergantung
-// konfigurasi JsonStringEnumConverter di host; input invalid → 400 (Validation).
+// konfigurasi JsonStringEnumConverter di host; input invalid → LocationErrors.InvalidType (400 via
+// ToProblemDetails — RFC7807 + kode stabil, konsisten dgn endpoint lain, bukan Problem hand-built).
 public sealed class LocationEndpoints : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
@@ -24,13 +25,12 @@ public sealed class LocationEndpoints : IEndpoint
         group.MapPost("/", async (CreateLocationRequest request, ISender sender, CancellationToken cancellationToken) =>
         {
             if (!Enum.TryParse<LocationType>(request.Type, ignoreCase: true, out var type))
-                return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
-                    title: "Validation Failed", detail: $"type '{request.Type}' tidak dikenal.");
+                return LocationErrors.InvalidType.ToProblemDetails();
 
             var result = await sender.Send(
                 new CreateLocationCommand(request.WarehouseId, type, request.Code), cancellationToken);
             return result.IsSuccess
-                ? Results.Created($"/locations/{result.Value}", new { locationId = result.Value })
+                ? Results.Created($"/locations/{result.Value}", new { id = result.Value })
                 : result.ToProblemDetails();
         });
 
@@ -44,7 +44,7 @@ public sealed class LocationEndpoints : IEndpoint
         group.MapGet("/{id:guid}", async (Guid id, IMasterDataReader reader, CancellationToken cancellationToken) =>
         {
             var location = await reader.GetLocationAsync(id, cancellationToken);
-            return location is null ? Results.NotFound() : Results.Ok(location);
+            return location is null ? LocationErrors.NotFound.ToProblemDetails() : Results.Ok(location);
         });
     }
 }
