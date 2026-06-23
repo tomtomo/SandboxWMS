@@ -10,6 +10,7 @@ using Wms.Auth.Application.Security;
 using Wms.Auth.Infrastructure.DependencyInjection;
 using Wms.Auth.Infrastructure.Persistence;
 using Wms.Auth.Infrastructure.Security;
+using Wms.BuildingBlocks.Application.Auditing;
 using Wms.BuildingBlocks.Domain.Results;
 using Wms.Platform.Local.DependencyInjection;
 using Wms.TestSupport;
@@ -87,6 +88,42 @@ public sealed class AuthFlowTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task Security_commands_are_audited_with_redacted_credentials()
+    {
+        await using var auth = await BuildSeededAuthAsync();
+
+        // login sukses → audit; login gagal → audit IsSuccess=false; refresh-reuse → audit not_active (ADR-0033)
+        var login = await SendAsync(auth, new LoginCommand("admin", AdminPassword));
+        Assert.True(login.IsSuccess);
+        var badLogin = await SendAsync(auth, new LoginCommand("admin", "wrong-password"));
+        Assert.True(badLogin.IsFailure);
+        var refresh = await SendAsync(auth, new RefreshCommand(login.Value.RefreshToken));
+        Assert.True(refresh.IsSuccess);
+        var reuse = await SendAsync(auth, new RefreshCommand(login.Value.RefreshToken)); // token lama (tercabut)
+        Assert.True(reuse.IsFailure);
+
+        using var scope = auth.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var audits = await db.Set<AuditLogEntry>().ToListAsync();
+
+        // Login ter-audit (sukses + gagal), outcome-aware, AggregateType=User
+        var logins = audits.Where(entry => entry.Action == nameof(LoginCommand)).ToList();
+        Assert.Equal(2, logins.Count);
+        Assert.Contains(logins, e => e.IsSuccess && e is { AggregateType: "User", AggregateId: "admin" });
+        Assert.Contains(logins, e => !e.IsSuccess && e.ErrorCode == "auth.invalid_credentials");
+
+        // kredensial TAK PERNAH plaintext di audit (AuditRedaction) — password & token ter-redaksi
+        Assert.All(logins, e => Assert.DoesNotContain(AdminPassword, e.Payload ?? ""));
+        Assert.All(logins, e => Assert.Contains("[REDACTED]", e.Payload ?? ""));
+
+        // reuse-detection = security event ter-audit out-of-band meski command Failure (sinyal kompromi)
+        var refreshes = audits.Where(entry => entry.Action == nameof(RefreshCommand)).ToList();
+        Assert.Equal(2, refreshes.Count);
+        Assert.Contains(refreshes, e => !e.IsSuccess && e.ErrorCode == "refresh_token.not_active");
+        Assert.All(refreshes, e => Assert.DoesNotContain(login.Value.RefreshToken, e.Payload ?? ""));
+    }
+
+    [Fact]
     public async Task Logout_revokes_refresh_token_idempotently()
     {
         await using var auth = await BuildSeededAuthAsync();
@@ -145,6 +182,7 @@ public sealed class AuthFlowTests(PostgresFixture fixture)
             .AddLocalPasswordHasher()   // Argon2id verify nyata
             .AddLocalSecretProvider()   // RS256 key ephemeral (sign access JWT)
             .AddLocalCaching()
+            .AddLocalAuditing()         // IAuditLogStore — security-event audit (ADR-0033), mirror host
             .BuildServiceProvider();
 
         using var scope = provider.CreateScope();

@@ -1,12 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Wms.BuildingBlocks.Application.Auditing;
 using Wms.BuildingBlocks.Application.Caching;
+using Wms.BuildingBlocks.Application.Idempotency;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Application.Notification;
 using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Application.Storage;
 using Wms.Platform.Local.Auditing;
 using Wms.Platform.Local.Caching;
+using Wms.Platform.Local.Idempotency;
 using Wms.Platform.Local.Messaging;
 using Wms.Platform.Local.Notification;
 using Wms.Platform.Local.Security;
@@ -35,6 +37,17 @@ public static class LocalPlatformExtensions
     public static IServiceCollection AddLocalAuditing(this IServiceCollection services)
     {
         services.AddScoped<IAuditLogStore, LocalAuditLogStore>();
+        return services;
+    }
+
+    // What: composition adapter API-idempotency Local (port IApiIdempotencyStore → tabel Postgres
+    // api_idempotency; ADR-0032)
+    // Why: middleware Idempotency-Key cek+simpan response per (endpoint, key); Local = Postgres tabel di
+    // schema infrastructure. Adapter cloud (Redis/Memorystore TTL-native) swap tanpa sentuh middleware/core
+    // (Hexagonal). Scoped: butuh DbContext ambient request.
+    public static IServiceCollection AddLocalApiIdempotencyStore(this IServiceCollection services)
+    {
+        services.AddScoped<IApiIdempotencyStore, LocalApiIdempotencyStore>();
         return services;
     }
 

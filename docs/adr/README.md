@@ -63,6 +63,8 @@ Index dari **Architecture Decision Record (ADR)** untuk sandbox microservices **
 | [0027](0027-system-actor-convention.md) | SYSTEM actor convention | Accepted | `HttpContext==null`→SYSTEM; invariant anon≠SYSTEM |
 | [0029](0029-local-in-process-messaging-delivery.md) | Local in-proc messaging + deferred cross-process | Accepted | Walking-skeleton E2E via test 1-proses; lintas-proses → broker cloud (P05/06) |
 | [0031](0031-optimistic-concurrency-token-xmin.md) | Optimistic concurrency token (`xmin`) pada aggregate root | Accepted | `UseXminAsConcurrencyToken()` tiap aggregate root + `RefreshToken`; `DbUpdateConcurrencyException`→`Error.Conflict` (409); tutup rotation-fork [ADR-0016](0016-refresh-token-rotation.md) + lost-update; zero-schema-cost |
+| [0032](0032-idempotency-key-mutating-rest.md) | Idempotency-Key pada mutating REST endpoint | Accepted | Middleware `Idempotency-Key` (RFC/Stripe) → store `infrastructure.api_idempotency` (port/adapter) replay response; retry-safe; key global, store synchronous best-effort, TTL 24h (cleanup = ops) |
+| [0033](0033-authentication-security-event-auditing.md) | Auditing event autentikasi & keamanan | Accepted | Login/Refresh/Logout = `IAuditableCommand`; reuse-detection ter-audit out-of-band meski Failure; kredensial auto-redaksi; reuse `AuditLogBehavior` [ADR-0022](0022-operational-audit-log.md) (OWASP ASVS V7) |
 
 **ADR existing yang diperkaya blok `## Amendment — 2026-06-20`**: [0002](0002-tri-cloud-hexagonal.md) named ports · [0003](0003-clean-architecture-dependency-rule-fitness-functions.md) FF 7–11 + behavioral · [0004](0004-cqrs-vertical-slice.md) pipeline ordering · [0005](0005-event-driven-outbox.md) saga rule + composite inbox key + logical event id · [0007](0007-monorepo-with-polyrepo-path.md) CPM · [0010](0010-data-ownership-db-per-service.md) infra-table ownership + MigrationRunner + dead-letter + gRPC reader-delegation (FF #8) · [0011](0011-master-data-read-api-cache-aside.md) `ICacheStore` + event-invalidation note · [0012](0012-deferred-authorization-enforcement.md) `IsActive` filter + warehouse-scoping concept + offline-validation · [0014](0014-snapshot-vs-reference-master-data.md) targeted bypass · [0016](0016-refresh-token-rotation.md) password hashing + RS256 · [0017](0017-eventual-consistency-reporting-notification.md) projection atomicity.
 
@@ -85,6 +87,8 @@ Tier C: 0019 error-handling · 0020 resilience · 0021 s2s-auth · 0022 audit-lo
 0030 reporting event enrichment ── event-carried state transfer ──▶ projection §F (Reporting); berlandas 0005·0010·0017, pola 0028, dijaga 0023(FF#11)
 0029 local in-proc messaging ── E2E via test 1-proses; cross-process ──▶ broker cloud P05/06; berlandas 0005·0008·0010
 0031 optimistic concurrency (xmin) ── Optimistic Offline Lock ──▶ aggregate root + RefreshToken; tutup rotation-fork 0016, lost-update; map exception→Conflict 0019; berlandas 0010·0026
+0032 idempotency-key ── EIP Idempotent Receiver (API) ──▶ mutating REST middleware + api_idempotency store (port/adapter); retry-safe; berlandas 0006·0010·0002
+0033 auth-event auditing ── opt-in IAuditableCommand ──▶ Login/Refresh/Logout; reuse-detection forensik; reuse AuditLogBehavior 0022 (OWASP ASVS V7); berlandas 0016·0027
 ```
 
 ## Legenda canon (ankor)

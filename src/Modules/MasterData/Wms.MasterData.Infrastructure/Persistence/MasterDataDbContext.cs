@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Wms.BuildingBlocks.Domain.Primitives;
+using Wms.BuildingBlocks.Infrastructure.Idempotency;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.MasterData.Domain;
 
@@ -37,6 +38,7 @@ public sealed class MasterDataDbContext(DbContextOptions<MasterDataDbContext> op
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.AddInfrastructureTables();
+        modelBuilder.AddApiIdempotencyTable();   // ADR-0032 reference host (MasterData) — rollout: modul lain menyusul
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MasterDataDbContext).Assembly);
 
         // Optimistic concurrency (ADR-0031): xmin (PostgreSQL system column, zero-schema-cost) sebagai
