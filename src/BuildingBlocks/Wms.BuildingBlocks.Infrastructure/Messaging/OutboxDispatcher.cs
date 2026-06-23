@@ -74,6 +74,8 @@ public sealed class OutboxDispatcher(
         var dispatched = 0;
         foreach (var message in batch)
         {
+            // rehydrate dari row Outbox persisted (BUKAN MessageEnvelope.For — pertahankan EventId/OccurredAt/
+            // Traceparent asli untuk replay-fidelity; For() men-generate identitas baru, salah utuk dispatch ulang).
             var envelope = new MessageEnvelope(
                 message.Id, message.LogicalName, message.OccurredAt,
                 message.Payload, message.Traceparent, message.Tracestate);
@@ -100,7 +102,7 @@ public sealed class OutboxDispatcher(
                         EventId = message.Id,
                         LogicalName = message.LogicalName,
                         Payload = message.Payload,
-                        Source = "outbox-dispatch",
+                        Source = $"outbox-dispatch:{message.LogicalName}",
                         Error = message.LastError ?? "unknown",
                         Attempts = message.Attempts,
                         DeadLetteredAt = DateTimeOffset.UtcNow,

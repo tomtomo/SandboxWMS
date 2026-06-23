@@ -22,8 +22,7 @@ public static class ReportingEndpoints
             ReportingDbContext db, string? sku, string? warehouseId,
             int? page, int? pageSize, CancellationToken cancellationToken) =>
         {
-            var safePage = Math.Max(1, page ?? 1);
-            var safeSize = Math.Clamp(pageSize ?? 20, 1, 100);
+            var (safePage, safeSize) = PageRequest.From(page, pageSize);
 
             var query = db.StockOnHandViews.AsNoTracking();
             if (!string.IsNullOrWhiteSpace(sku))
@@ -44,8 +43,7 @@ public static class ReportingEndpoints
         app.MapGet("/reports/receiving-summary", async (
             ReportingDbContext db, int? page, int? pageSize, CancellationToken cancellationToken) =>
         {
-            var safePage = Math.Max(1, page ?? 1);
-            var safeSize = Math.Clamp(pageSize ?? 20, 1, 100);
+            var (safePage, safeSize) = PageRequest.From(page, pageSize);
 
             var query = db.ReceivingSummaries.AsNoTracking();
             var total = await query.CountAsync(cancellationToken);
@@ -68,8 +66,7 @@ public static class ReportingEndpoints
         app.MapGet("/reports/dispatch-summary", async (
             ReportingDbContext db, int? page, int? pageSize, CancellationToken cancellationToken) =>
         {
-            var safePage = Math.Max(1, page ?? 1);
-            var safeSize = Math.Clamp(pageSize ?? 20, 1, 100);
+            var (safePage, safeSize) = PageRequest.From(page, pageSize);
 
             var query = db.DispatchSummaries.AsNoTracking();
             var total = await query.CountAsync(cancellationToken);
@@ -85,8 +82,7 @@ public static class ReportingEndpoints
         app.MapGet("/reports/operator-activity", async (
             ReportingDbContext db, int? page, int? pageSize, CancellationToken cancellationToken) =>
         {
-            var safePage = Math.Max(1, page ?? 1);
-            var safeSize = Math.Clamp(pageSize ?? 20, 1, 100);
+            var (safePage, safeSize) = PageRequest.From(page, pageSize);
 
             var query = db.OperatorActivities.AsNoTracking();
             var total = await query.CountAsync(cancellationToken);

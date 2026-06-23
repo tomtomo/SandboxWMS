@@ -10,6 +10,9 @@ public static class LocationErrors
     public static readonly Error NotFound =
         Error.NotFound("location.not_found", "Location tidak ditemukan.");
 
+    public static readonly Error InvalidType =
+        Error.Validation("location.invalid_type", "Tipe lokasi tidak dikenal.");
+
     public static readonly Error MissingWarehouse =
         Error.Validation("location.missing_warehouse", "warehouseId wajib diisi.");
 

@@ -89,6 +89,21 @@ public class WaveTests
     }
 
     [Fact]
+    public void MarkReady_when_not_active_returns_not_active()
+    {
+        var wave = Active();
+        var t1 = Guid.NewGuid();
+        wave.AttachPickingTasks([t1]);
+        wave.MarkReady([t1]); // → Ready
+
+        var result = wave.MarkReady([t1]); // wave sudah Ready, bukan Active
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(WaveErrors.NotActive, result.Error); // dibedakan dari NotAllPicked (UF-34)
+        Assert.Equal(WaveStatus.Ready, wave.Status); // tak berubah
+    }
+
+    [Fact]
     public void AttachPickingTasks_when_not_active_is_illegal()
     {
         var wave = Active();

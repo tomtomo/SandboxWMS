@@ -7,9 +7,9 @@ namespace Wms.Inbound.Application.DependencyInjection;
 
 // What: composition modul Inbound (Application) — CQRS pipeline wiring (ADR-0004)
 // Why: host cukup AddInboundApplication(). Mendaftarkan MediatR (scan handler slice Inbound) +
-// urutan pipeline behavior BuildingBlocks (Logging→Authz→Validation→Transaction) + validator
+// urutan pipeline behavior BuildingBlocks (Logging→Authz→Validation→AuditLog→Transaction) + validator
 // FluentValidation — semua use-case Inbound mengalir lewat pipeline yang sama.
-// How: AddMediatR scan assembly Application ini; AddBuildingBlocksBehaviors menyuntik 4 behavior
+// How: AddMediatR scan assembly Application ini; AddBuildingBlocksBehaviors menyuntik 5 behavior
 // berurutan; AddValidatorsFromAssembly menemukan IValidator slice.
 public static class InboundApplicationExtensions
 {

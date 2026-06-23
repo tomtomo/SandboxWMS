@@ -1,7 +1,5 @@
 using System.Text.Json.Serialization;
-using Grpc.Core;
 using Wms.Auth.Grpc;
-using Wms.BuildingBlocks.Application.Security;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.BuildingBlocks.Infrastructure.Resilience;
@@ -40,26 +38,8 @@ builder.Services.AddLocalNotificationChannels();
 // UnsafeUseInsecureChannelCallCredentials agar metadata terkirim di Local. Adapter directory di-wire host.
 builder.Services.AddGrpcResiliencePipeline();
 builder.Services.AddLocalServiceTokenProvider();
-builder.Services.AddGrpcClient<AuthReadApi.AuthReadApiClient>(options =>
-        options.Address = new Uri("http://auth"))
-    .ConfigureChannel((serviceProvider, channel) =>
-    {
-        channel.Credentials = ChannelCredentials.Create(
-            ChannelCredentials.Insecure,
-            ServiceAuthCallCredentials.Create(
-                serviceProvider.GetRequiredService<IServiceTokenProvider>(), audience: "auth"));
-        channel.UnsafeUseInsecureChannelCallCredentials = true;
-    });
-builder.Services.AddGrpcClient<MasterDataReadApi.MasterDataReadApiClient>(options =>
-        options.Address = new Uri("http://masterdata"))
-    .ConfigureChannel((serviceProvider, channel) =>
-    {
-        channel.Credentials = ChannelCredentials.Create(
-            ChannelCredentials.Insecure,
-            ServiceAuthCallCredentials.Create(
-                serviceProvider.GetRequiredService<IServiceTokenProvider>(), audience: "masterdata"));
-        channel.UnsafeUseInsecureChannelCallCredentials = true;
-    });
+builder.Services.AddWmsInternalGrpcClient<AuthReadApi.AuthReadApiClient>("http://auth", "auth");
+builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("http://masterdata", "masterdata");
 builder.Services.AddNotificationDirectories();
 
 // REST terima enum (SubscriberType/NotificationChannel) sebagai NAMA, bukan angka

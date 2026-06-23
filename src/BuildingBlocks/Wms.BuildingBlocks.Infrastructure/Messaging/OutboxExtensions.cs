@@ -10,6 +10,8 @@ namespace Wms.BuildingBlocks.Infrastructure.Messaging;
 // How: map MessageEnvelope → OutboxMessage lalu Add ke DbContext (belum SaveChanges).
 public static class OutboxExtensions
 {
+    // TODO-07B-TRACECONTEXT (ADR-0024): choke point tunggal — saat 07b, capture Activity.Current di sini
+    // untuk mengisi envelope.Traceparent/Tracestate (kini null dari producer) → trace utuh menembus hop broker.
     public static void AddToOutbox(this DbContext db, MessageEnvelope envelope)
         => db.Set<OutboxMessage>().Add(new OutboxMessage
         {

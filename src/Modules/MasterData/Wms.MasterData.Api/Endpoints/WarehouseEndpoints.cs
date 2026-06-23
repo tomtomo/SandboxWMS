@@ -7,6 +7,7 @@ using Wms.BuildingBlocks.Web.ErrorHandling;
 using Wms.MasterData.Application.Abstractions;
 using Wms.MasterData.Application.Features.CreateWarehouse;
 using Wms.MasterData.Application.Features.DeactivateWarehouse;
+using Wms.MasterData.Domain;
 
 namespace Wms.MasterData.Api.Endpoints;
 
@@ -22,7 +23,7 @@ public sealed class WarehouseEndpoints : IEndpoint
         {
             var result = await sender.Send(new CreateWarehouseCommand(request.Name, request.Address), cancellationToken);
             return result.IsSuccess
-                ? Results.Created($"/warehouses/{result.Value}", new { warehouseId = result.Value })
+                ? Results.Created($"/warehouses/{result.Value}", new { id = result.Value })
                 : result.ToProblemDetails();
         });
 
@@ -36,7 +37,7 @@ public sealed class WarehouseEndpoints : IEndpoint
         group.MapGet("/{id:guid}", async (Guid id, IMasterDataReader reader, CancellationToken cancellationToken) =>
         {
             var warehouse = await reader.GetWarehouseAsync(id, cancellationToken);
-            return warehouse is null ? Results.NotFound() : Results.Ok(warehouse);
+            return warehouse is null ? WarehouseErrors.NotFound.ToProblemDetails() : Results.Ok(warehouse);
         });
     }
 }

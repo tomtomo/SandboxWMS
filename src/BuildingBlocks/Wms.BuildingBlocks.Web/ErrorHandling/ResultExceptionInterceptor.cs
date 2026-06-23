@@ -18,7 +18,7 @@ public sealed class ResultFailureException(Error error) : Exception(error.Messag
 // lewat ErrorTransport (satu tabel) — bukan Unknown/Internal generik. Error.Code dibawa
 // sebagai trailer supaya client bisa membaca kode stabil.
 // How: bungkus continuation unary; tangkap ResultFailureException → RpcException(Status +
-// trailer). Belum di-mount (belum ada modul *.Grpc) — template siap saat service gRPC lahir.
+// trailer). Di-mount di MasterData.Host.Local + Auth.Host.Local (AddGrpc options.Interceptors).
 public sealed class ResultExceptionInterceptor : Interceptor
 {
     public override async Task<TResponse> UnaryServerHandler<TRequest, TResponse>(

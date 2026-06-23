@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wms.BuildingBlocks.Domain.Primitives;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inventory.Domain;
 
@@ -24,6 +25,21 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.AddInfrastructureTables();
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
+
+        // Optimistic concurrency (ADR-0031): xmin (PostgreSQL system column, zero-schema-cost) sebagai
+        // concurrency token di TIAP aggregate root — konvensi (bukan per-config) → root kini & nanti otomatis
+        // ter-proteksi, tak luput; owned/child & tabel rail (non-AggregateRoot) di-skip. Tutup lost-update
+        // Stock (Putaway/Allocate/Pick konkuren).
+        // UseXminAsConcurrencyToken deprecated tapi DIPAKAI SENGAJA: ia migration-safe (Npgsql exclude
+        // system-column xmin dari migration). Replacement manual Property<uint>("xmin") berisiko `migrations
+        // add` emit AddColumn xmin yang gagal di-apply. Revisit bila Npgsql menghapus API (upgrade major).
+#pragma warning disable CS0618
+        foreach (var rootType in modelBuilder.Model.GetEntityTypes()
+                     .Select(entity => entity.ClrType)
+                     .Where(type => type.DerivesFromAggregateRoot())
+                     .ToList())
+            modelBuilder.Entity(rootType).UseXminAsConcurrencyToken();
+#pragma warning restore CS0618
         base.OnModelCreating(modelBuilder);
     }
 }

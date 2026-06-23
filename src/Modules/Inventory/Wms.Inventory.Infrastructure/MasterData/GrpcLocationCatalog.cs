@@ -34,11 +34,13 @@ internal sealed class GrpcLocationCatalog(
         }
     }
 
-    // What: mapping LocationKind Inventory → proto LocationType (ACL translation)
+    // What: mapping LocationKind Inventory → proto LocationType (ACL translation) — fail-loud default
+    // Why: LocationKind baru yang belum ter-map = crash early (ADR-0019), bukan diam jadi Unspecified
+    // (yang read-API baca sebagai NotFound) → masking nilai valid-tapi-salah di ACL (co-symptom UF-05).
     private static LocationType ToProto(LocationKind kind) => kind switch
     {
         LocationKind.ReceivingArea => LocationType.ReceivingArea,
         LocationKind.QuarantineArea => LocationType.QuarantineArea,
-        _ => LocationType.Unspecified,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "LocationKind tak ter-map ke proto"),
     };
 }

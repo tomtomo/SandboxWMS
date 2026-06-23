@@ -9,7 +9,11 @@ public sealed record PagedResultDto<T>(
     int PageSize,
     int TotalCount)
 {
-    public bool HasNextPage => Page * PageSize < TotalCount;
+    // PageSize 0 → TotalPages 0 (guard divide-by-zero); HasNextPage mirror PagedResult<T> BuildingBlocks
+    // (UF-33 — cegah drift formula wire-vs-domain). Page 1-based.
+    public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling((double)TotalCount / PageSize);
+
+    public bool HasNextPage => Page < TotalPages;
 
     public bool HasPreviousPage => Page > 1;
 }

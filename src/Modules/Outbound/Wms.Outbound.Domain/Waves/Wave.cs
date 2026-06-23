@@ -61,7 +61,7 @@ public sealed class Wave : AuditableAggregateRoot<WaveId>
     public Result MarkReady(IReadOnlyCollection<Guid> completedPickingTaskIds)
     {
         if (Status != WaveStatus.Active)
-            return Result.Failure(WaveErrors.NotAllPicked);
+            return Result.Failure(WaveErrors.NotActive);
         if (_pickingTaskIds.Count == 0 || !_pickingTaskIds.All(completedPickingTaskIds.Contains))
             return Result.Failure(WaveErrors.NotAllPicked);
 

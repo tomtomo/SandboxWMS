@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Wms.BuildingBlocks.Application.Abstractions;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Domain.Results;
@@ -55,12 +54,6 @@ public sealed class ShipmentDispatchedConsumer(
     private static MessageEnvelope ToEnvelope(Guid waveId, IReadOnlyList<StockRemovedLineV1> lines)
     {
         var payload = new StockRemovedV1(waveId, lines);
-        return new MessageEnvelope(
-            EventId: Guid.NewGuid(),
-            LogicalName: StockRemovedV1.LogicalName,
-            OccurredAt: DateTimeOffset.UtcNow,
-            Payload: JsonSerializer.Serialize(payload),
-            Traceparent: null,
-            Tracestate: null);
+        return MessageEnvelope.For(StockRemovedV1.LogicalName, payload);
     }
 }

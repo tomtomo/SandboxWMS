@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wms.BuildingBlocks.Domain.Primitives;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.MasterData.Domain;
 
@@ -37,6 +38,20 @@ public sealed class MasterDataDbContext(DbContextOptions<MasterDataDbContext> op
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.AddInfrastructureTables();
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MasterDataDbContext).Assembly);
+
+        // Optimistic concurrency (ADR-0031): xmin (PostgreSQL system column, zero-schema-cost) sebagai
+        // concurrency token di TIAP aggregate root — konvensi (bukan per-config) → root kini & nanti otomatis
+        // ter-proteksi, tak luput; owned/child & tabel rail (non-AggregateRoot) di-skip.
+        // UseXminAsConcurrencyToken deprecated tapi DIPAKAI SENGAJA: ia migration-safe (Npgsql exclude
+        // system-column xmin dari migration). Replacement manual Property<uint>("xmin") berisiko `migrations
+        // add` emit AddColumn xmin yang gagal di-apply. Revisit bila Npgsql menghapus API (upgrade major).
+#pragma warning disable CS0618
+        foreach (var rootType in modelBuilder.Model.GetEntityTypes()
+                     .Select(entity => entity.ClrType)
+                     .Where(type => type.DerivesFromAggregateRoot())
+                     .ToList())
+            modelBuilder.Entity(rootType).UseXminAsConcurrencyToken();
+#pragma warning restore CS0618
 
         // What: global soft-delete query filter (ADR-0014) — flag-gated untuk targeted bypass.
         // Why: di OnModelCreating (bukan IEntityTypeConfiguration) karena ekspresi mereferensi instance

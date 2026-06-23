@@ -18,6 +18,9 @@ public enum ErrorType
 // How: readonly record struct + factory per ErrorType; Error.None menandai sukses.
 public readonly record struct Error(string Code, string Message, ErrorType Type)
 {
+    // What: sentinel sukses — None eksplisit, BUKAN default(Error). default(Error) = (Code="", Message="",
+    // Type=Validation) tak pernah tercapai: Result.ctor menolak sukses-tanpa-None & gagal-dengan-None
+    // (invariant XOR), jadi asimetri None.Type=Unexpected vs default.Type=Validation aman by-construction.
     public static readonly Error None = new(string.Empty, string.Empty, ErrorType.Unexpected);
 
     public static Error Validation(string code, string message) => new(code, message, ErrorType.Validation);

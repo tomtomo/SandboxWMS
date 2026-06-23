@@ -32,6 +32,15 @@ public sealed class TransactionBehavior<TRequest, TResponse>(IUnitOfWork unitOfW
         {
             response = await next(cancellationToken);
         }
+        catch (ConcurrencyConflictException)
+        {
+            // optimistic-concurrency conflict (ADR-0031): rollback + map ke Result(Error.Conflict) → 409/
+            // Aborted, BUKAN 500. Caller surface 409; operasi idempotent bisa retry/re-read. Menutup
+            // RefreshToken rotation-fork (ADR-0016) + lost-update Stock tanpa membocorkan exception EF.
+            await transaction.RollbackAsync(cancellationToken);
+            return ResultFactory<TResponse>.Failure(
+                Error.Conflict("concurrency.conflict", "Sumber daya diubah transaksi lain — coba lagi."));
+        }
         catch
         {
             await transaction.RollbackAsync(cancellationToken);

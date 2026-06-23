@@ -18,8 +18,7 @@ internal sealed class GoodsReceiptReader(InboundDbContext db) : IGoodsReceiptRea
         int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var safePage = Math.Max(1, page);
-        var safeSize = Math.Clamp(pageSize, 1, 100);
+        var (safePage, safeSize) = PageRequest.From(page, pageSize);
 
         var query = db.GoodsReceipts.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(warehouseId))
