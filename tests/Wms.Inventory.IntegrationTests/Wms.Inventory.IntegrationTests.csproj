@@ -11,6 +11,8 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!-- real RabbitMQ broker untuk RabbitMqChainTests (ADR-0029 amendment cross-process proof) -->
+    <PackageReference Include="Testcontainers.RabbitMq" />
   </ItemGroup>
 
   <ItemGroup>

@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +23,10 @@
          tetap 8.0.1. (Tegangan mixed-TFM khas AppHost net10 + services net8.) -->
     <PackageReference Include="Microsoft.Extensions.Hosting" VersionOverride="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" VersionOverride="10.0.8" />
+    <!-- Aspire.Hosting.RabbitMQ 13.4.6 menarik RabbitMQ.Client >= 7.2.1 transitif; CPM pin 6.8.1 (untuk
+         Platform.Local net8, API sync IModel). AppHost (net10, hanya deklarasi container — TAK bicara AMQP)
+         override ke 7.2.1 agar transitive terpenuhi. Proses terpisah dari host → versi beda tak bentrok. -->
+    <PackageReference Include="RabbitMQ.Client" VersionOverride="7.2.1" />
   </ItemGroup>
 
   <ItemGroup>

@@ -36,6 +36,8 @@ public static class InventoryInfrastructureExtensions
         services.AddTransactionalMessaging();
         services.AddScoped<IStockRepository, StockRepository>();
         services.AddScoped<IPutawayTaskRepository, PutawayTaskRepository>();
+        services.AddScoped<IStockReader, StockReader>();
+        services.AddScoped<IPutawayTaskReader, PutawayTaskReader>();
 
         // consumer integration-event (scoped per pesan; bukan MediatR handler) — Phase 03b: 4 event.
         services.AddScoped<GoodsReceiptConfirmedConsumer>();

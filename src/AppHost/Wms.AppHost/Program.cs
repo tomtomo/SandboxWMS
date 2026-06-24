@@ -12,6 +12,12 @@ var authDb = postgres.AddDatabase("authdb");
 var reportingDb = postgres.AddDatabase("reportingdb");
 var notificationDb = postgres.AddDatabase("notificationdb");
 
+// RabbitMQ broker LOKAL (ADR-0029 amendment): cross-process domain-event delivery NYATA di Local Aspire —
+// mengaktifkan subscribe-point yang dulu IDLE (in-proc). Outbox tiap producer → exchange topic "wms.events";
+// queue durable per modul consumer. Management plugin (UI) untuk inspeksi exchange/queue/DLQ saat dev.
+// Connection string di-inject ke host event-driven (inbound/inventory/outbound/reporting/notification).
+var rabbitmq = builder.AddRabbitMQ("rabbitmq").WithManagementPlugin();
+
 // Phase 04e: MigrationRunner = DB-prep resource (apply EF migration ke 7 DB-per-service + seed admin/permission,
 // ADR-0010/0012). Pola Aspire/eShop: run-to-completion; service WaitForCompletion(migrations) di bawah → DB
 // Aspire (container, connection string DINAMIS) ter-migrate & ter-seed otomatis SEBELUM login/flow, jadi DoD
@@ -59,6 +65,7 @@ var inbound = builder.AddProject<Projects.Wms_Inbound_Host_Local>("inbound")
     .WithReference(inboundDb)
     .WithReference(masterdata)
     .WithEnvironment(PublicKeyEnv, jwtPublicKeyPem)
+    .WithReference(rabbitmq).WaitFor(rabbitmq)
     .WaitFor(inboundDb)
     .WaitForCompletion(migrations);
 
@@ -66,6 +73,7 @@ var inventory = builder.AddProject<Projects.Wms_Inventory_Host_Local>("inventory
     .WithReference(inventoryDb)
     .WithReference(masterdata)
     .WithEnvironment(PublicKeyEnv, jwtPublicKeyPem)
+    .WithReference(rabbitmq).WaitFor(rabbitmq)
     .WaitFor(inventoryDb)
     .WaitForCompletion(migrations);
 
@@ -73,6 +81,7 @@ var outbound = builder.AddProject<Projects.Wms_Outbound_Host_Local>("outbound")
     .WithReference(outboundDb)
     .WithReference(masterdata)
     .WithEnvironment(PublicKeyEnv, jwtPublicKeyPem)
+    .WithReference(rabbitmq).WaitFor(rabbitmq)
     .WaitFor(outboundDb)
     .WaitForCompletion(migrations);
 
@@ -81,6 +90,7 @@ var outbound = builder.AddProject<Projects.Wms_Outbound_Host_Local>("outbound")
 // maupun ref masterdata (semua dimensi projeksi ter-bawa di payload event, ADR-0030 — nol sync-query).
 var reporting = builder.AddProject<Projects.Wms_Reporting_Host_Local>("reporting")
     .WithReference(reportingDb)
+    .WithReference(rabbitmq).WaitFor(rabbitmq)
     .WaitFor(reportingDb)
     .WaitForCompletion(migrations);
 
@@ -92,6 +102,7 @@ var notification = builder.AddProject<Projects.Wms_Notification_Host_Local>("not
     .WithReference(notificationDb)
     .WithReference(auth)
     .WithReference(masterdata)
+    .WithReference(rabbitmq).WaitFor(rabbitmq)
     .WaitFor(notificationDb)
     .WaitForCompletion(migrations);
 

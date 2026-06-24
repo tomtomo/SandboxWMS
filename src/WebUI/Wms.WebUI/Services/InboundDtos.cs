@@ -11,7 +11,7 @@ public enum DiscrepancyType { ShortDelivery = 1, OverDelivery = 2, WrongItem = 3
 public enum ResolutionAction { AcceptPartial = 1, RejectExcess = 2, ReturnToSupplier = 3, SendToQC = 4 }
 
 public sealed record GoodsReceiptDetailDto(
-    Guid GoodsReceiptId, string? PoRef, string? SupplierId, string? DockDoor, Guid WarehouseId,
+    Guid GoodsReceiptId, string? PoRef, string? SupplierId, string? DockDoor, string WarehouseId,
     string Status, string? HoldReason,
     IReadOnlyList<ExpectedLineDto> ExpectedLines,
     IReadOnlyList<ScannedLineDto> ScannedLines,
@@ -20,8 +20,10 @@ public sealed record GoodsReceiptDetailDto(
 public sealed record ExpectedLineDto(string Sku, int ExpectedQty, string Uom);
 public sealed record ScannedLineDto(string Sku, int ActualQty, string? Batch, DateOnly? Expiry, string LineStatus);
 public sealed record DiscrepancyDto(string Sku, string Type, int Qty, string? ResolutionAction, string? ResolutionNote);
+// What: read DTO attachment (metadata GRAttachment; ADR-0015). Tidak ada ScanStatus — GRAttachment
+// di overview/domain tak memodelkan AV-scan; field fiktif legacy dihapus (backend tak mengirimnya).
 public sealed record AttachmentDto(
-    Guid Id, string FileName, string ContentType, long SizeBytes, string ScanStatus, DateTimeOffset UploadedAt);
+    Guid Id, string FileName, string ContentType, long SizeBytes, DateTimeOffset UploadedAt);
 
 public sealed class ScanLineForm
 {

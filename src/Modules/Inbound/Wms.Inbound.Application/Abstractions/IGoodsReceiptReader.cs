@@ -15,4 +15,8 @@ public interface IGoodsReceiptReader
         int page = 1,
         int pageSize = 20,
         CancellationToken cancellationToken = default);
+
+    // What: detail satu GR untuk halaman detail WebUI (read-DTO penuh + owned collections + derived discrepancy Qty).
+    // How: lookup by strongly-typed id; null bila tak ditemukan → endpoint memetakan ke 404.
+    Task<GoodsReceiptDetail?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 }

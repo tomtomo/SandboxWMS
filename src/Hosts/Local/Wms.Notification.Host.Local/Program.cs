@@ -11,9 +11,9 @@ using Wms.Notification.Directory;
 using Wms.Notification.Endpoints;
 using Wms.Notification.Handlers;
 using Wms.Notification.Messaging;
+using Wms.BuildingBlocks.Application.Messaging;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
-using Wms.Platform.Local.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,7 +28,15 @@ var notificationConnection = builder.Configuration.GetConnectionString("notifica
     ?? throw new InvalidOperationException("ConnectionStrings:notificationdb tidak diset (Aspire WithReference).");
 
 builder.Services.AddNotification(notificationConnection);
-builder.Services.AddLocalMessaging();
+
+// messaging transport (ADR-0029 amendment): RabbitMQ broker bila ConnectionStrings:rabbitmq tersedia (Aspire)
+// → consume 2 event lintas-proses NYATA → enqueue delivery; else in-proc fallback (integration test 1-proses).
+var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq");
+if (!string.IsNullOrWhiteSpace(rabbitConn))
+    builder.Services.AddRabbitMqMessaging(rabbitConn, "notification");
+else
+    builder.Services.AddLocalMessaging();
+
 builder.Services.AddConsumerDeadLettering();
 builder.Services.AddLocalNotificationChannels();
 
@@ -51,17 +59,17 @@ var app = builder.Build();
 // correlation-id sedini mungkin → tiap log/trace request berbagi korelator (ADR-0024 baseline)
 app.UseCorrelationId();
 
-// What: consumer subscribe-point (ADR-0029) — sambungkan dispatcher Notification ke rail Local, PER event.
-// Why: di Local 2-proses (Opsi C) ini IDLE — cross-process delivery menyusul via adapter broker (Phase
-// 05d/06d). Choreography E2E dibuktikan via integration test 1-proses. Tiap notifier di-subscribe terpisah
-// dgn DLQ source = HandlerType-nya → poison ter-atribusi tepat.
+// What: consumer subscribe-point (ADR-0029 amendment) — sambungkan dispatcher Notification ke rail, PER event.
+// Why: kini AKTIF lintas-proses — IMessageSubscriber = adapter RabbitMQ (queue "notification" bind "#") saat
+// broker ada, atau in-proc saat fallback test. Tiap notifier di-subscribe terpisah dgn DLQ source =
+// HandlerType-nya → poison ter-atribusi tepat.
 // How: tiap dispatcher.HandleXxxAsync dibungkus ConsumerDeadLetterPipeline (retry → DLQ, Phase 02b).
-var publisher = app.Services.GetRequiredService<InMemoryMessagePublisher>();
+var subscriber = app.Services.GetRequiredService<IMessageSubscriber>();
 var dispatcher = app.Services.GetRequiredService<NotificationIntegrationEventDispatcher>();
 var deadLettering = app.Services.GetRequiredService<ConsumerDeadLetterPipeline>();
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     GoodsReceiptConfirmedNotifier.HandlerType, dispatcher.HandleGoodsReceiptConfirmedAsync));
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     PickingCompletedNotifier.HandlerType, dispatcher.HandlePickingCompletedAsync));
 
 app.MapDefaultEndpoints();

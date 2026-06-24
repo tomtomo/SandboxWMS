@@ -1,9 +1,9 @@
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.BuildingBlocks.Web.Correlation;
+using Wms.BuildingBlocks.Application.Messaging;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
-using Wms.Platform.Local.Messaging;
 using Wms.Reporting.DependencyInjection;
 using Wms.Reporting.Endpoints;
 using Wms.Reporting.Messaging;
@@ -22,7 +22,15 @@ var reportingConnection = builder.Configuration.GetConnectionString("reportingdb
     ?? throw new InvalidOperationException("ConnectionStrings:reportingdb tidak diset (Aspire WithReference).");
 
 builder.Services.AddReporting(reportingConnection);
-builder.Services.AddLocalMessaging();
+
+// messaging transport (ADR-0029 amendment): RabbitMQ broker bila ConnectionStrings:rabbitmq tersedia (Aspire)
+// → consume 4 event lintas-proses NYATA → projection; else in-proc fallback (integration test 1-proses).
+var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq");
+if (!string.IsNullOrWhiteSpace(rabbitConn))
+    builder.Services.AddRabbitMqMessaging(rabbitConn, "reporting");
+else
+    builder.Services.AddLocalMessaging();
+
 builder.Services.AddConsumerDeadLettering();
 
 var app = builder.Build();
@@ -30,21 +38,21 @@ var app = builder.Build();
 // correlation-id sedini mungkin → tiap log/trace request berbagi korelator (ADR-0024 baseline)
 app.UseCorrelationId();
 
-// What: consumer subscribe-point (ADR-0029) — sambungkan dispatcher Reporting ke rail Local, PER event.
-// Why: di Local 2-proses (Opsi C) ini IDLE — cross-process delivery menyusul via adapter broker (Phase
-// 05d/06d serverless). Choreography E2E dibuktikan via integration test 1-proses. Tiap projector
-// di-subscribe terpisah dengan DLQ source = HandlerType-nya → poison ter-atribusi tepat (forensik granular).
+// What: consumer subscribe-point (ADR-0029 amendment) — sambungkan dispatcher Reporting ke rail, PER event.
+// Why: kini AKTIF lintas-proses — IMessageSubscriber = adapter RabbitMQ (queue "reporting" bind "#") saat broker
+// ada, atau in-proc saat fallback test. Tiap projector di-subscribe terpisah dengan DLQ source = HandlerType-nya
+// → poison ter-atribusi tepat (forensik granular).
 // How: tiap dispatcher.HandleXxxAsync dibungkus ConsumerDeadLetterPipeline (retry → DLQ, Phase 02b).
-var publisher = app.Services.GetRequiredService<InMemoryMessagePublisher>();
+var subscriber = app.Services.GetRequiredService<IMessageSubscriber>();
 var dispatcher = app.Services.GetRequiredService<ReportingIntegrationEventDispatcher>();
 var deadLettering = app.Services.GetRequiredService<ConsumerDeadLetterPipeline>();
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     GoodsReceiptConfirmedProjector.HandlerType, dispatcher.HandleGoodsReceiptConfirmedAsync));
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     StockRemovedProjector.HandlerType, dispatcher.HandleStockRemovedAsync));
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     PutawayCompletedProjector.HandlerType, dispatcher.HandlePutawayCompletedAsync));
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     PickingCompletedProjector.HandlerType, dispatcher.HandlePickingCompletedAsync));
 
 app.MapDefaultEndpoints();

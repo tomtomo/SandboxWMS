@@ -1,4 +1,5 @@
 using Wms.BuildingBlocks.Application.Caching;
+using Wms.BuildingBlocks.Application.Pagination;
 using Wms.MasterData.Application.Abstractions;
 using Wms.MasterData.Application.ReadModels;
 using Wms.MasterData.Domain;
@@ -75,4 +76,19 @@ internal sealed class CachedMasterDataReader(IMasterDataReader inner, ICacheStor
     // What: pass-through TAK di-cache (ADR-0011) — jalur manajemen melihat inactive
     public Task<ProductReadModel?> GetProductIncludingInactiveAsync(string sku, CancellationToken cancellationToken = default)
         => inner.GetProductIncludingInactiveAsync(sku, cancellationToken);
+
+    // What: list paginated — PASS-THROUGH TAK di-cache (ADR-0011)
+    // Why: paged list bersifat dinamis (kombinasi filter+page+search) → caching per-permutasi tak ekonomis
+    // & cepat basi; korektnес (lihat state inactive/aktif terkini) > latency. Mirror pola IncludingInactive.
+    public Task<PagedResult<ProductListItem>> ListProductsAsync(
+        int page, int pageSize, bool? isActive, string? search, CancellationToken ct = default)
+        => inner.ListProductsAsync(page, pageSize, isActive, search, ct);
+
+    public Task<PagedResult<WarehouseListItem>> ListWarehousesAsync(
+        int page, int pageSize, bool? isActive, CancellationToken ct = default)
+        => inner.ListWarehousesAsync(page, pageSize, isActive, ct);
+
+    public Task<PagedResult<LocationListItem>> ListLocationsAsync(
+        int page, int pageSize, Guid? warehouseId, LocationType? type, bool? isActive, CancellationToken ct = default)
+        => inner.ListLocationsAsync(page, pageSize, warehouseId, type, isActive, ct);
 }

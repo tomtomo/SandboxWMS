@@ -12,8 +12,13 @@ public static class OutboundApiExtensions
     public static IEndpointRouteBuilder MapOutboundEndpoints(this IEndpointRouteBuilder app)
     {
         new ReceiveOutboundOrderEndpoint().MapEndpoint(app);
+        new ListOutboundOrdersEndpoint().MapEndpoint(app);
+        new GetOutboundOrderEndpoint().MapEndpoint(app);
         new CreateWaveEndpoint().MapEndpoint(app);
+        new ListWavesEndpoint().MapEndpoint(app);
+        new GetWaveEndpoint().MapEndpoint(app);
         new CompletePickingEndpoint().MapEndpoint(app);
+        new ListPickingTasksEndpoint().MapEndpoint(app);
         new DispatchWaveEndpoint().MapEndpoint(app);
         return app;
     }

@@ -41,6 +41,31 @@ public sealed class LocationEndpoints : IEndpoint
             return result.IsSuccess ? Results.NoContent() : result.ToProblemDetails();
         });
 
+        // TODO-AUTH: MasterData.ViewLocation
+        // Why: type diterima sebagai STRING opsional → di-parse ke LocationType? (null bila absen, mirror
+        // create endpoint sebagai precedent). String non-kosong yang invalid → 400 (LocationErrors.InvalidType).
+        group.MapGet("/", async (
+            Guid? warehouseId,
+            string? type,
+            bool? isActive,
+            int? page,
+            int? pageSize,
+            IMasterDataReader reader,
+            CancellationToken cancellationToken) =>
+        {
+            LocationType? parsedType = null;
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                if (!Enum.TryParse<LocationType>(type, ignoreCase: true, out var t))
+                    return LocationErrors.InvalidType.ToProblemDetails();
+                parsedType = t;
+            }
+
+            var result = await reader.ListLocationsAsync(
+                page ?? 1, pageSize ?? 20, warehouseId, parsedType, isActive, cancellationToken);
+            return Results.Ok(result);
+        });
+
         group.MapGet("/{id:guid}", async (Guid id, IMasterDataReader reader, CancellationToken cancellationToken) =>
         {
             var location = await reader.GetLocationAsync(id, cancellationToken);

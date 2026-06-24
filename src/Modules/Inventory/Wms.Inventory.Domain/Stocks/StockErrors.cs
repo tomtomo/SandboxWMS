@@ -23,6 +23,9 @@ public static class StockErrors
     public static readonly Error NonPositiveQuantity =
         Error.Validation("stock.non_positive_quantity", "quantity harus lebih dari nol.");
 
+    public static readonly Error NegativeQuantity =
+        Error.Validation("stock.negative_quantity", "quantity hasil koreksi tidak boleh negatif.");
+
     public static readonly Error InvalidPutaway =
         Error.Conflict("stock.invalid_putaway", "hanya stock OnHand yang dapat di-putaway.");
 

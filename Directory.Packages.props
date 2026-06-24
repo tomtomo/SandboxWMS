@@ -21,6 +21,14 @@
     <!-- Aspire (orkestrasi LOCAL — AppHost saja) -->
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+    <!-- RabbitMQ broker LOKAL (ADR-0029 amendment): cross-process domain-event delivery nyata di Local.
+         Aspire.Hosting.RabbitMQ HANYA di AppHost (net10) — jalankan container + inject ConnectionStrings:rabbitmq.
+         Host net8 pakai RabbitMQ.Client 6.x LANGSUNG (via Platform.Local) — SENGAJA bukan Aspire.RabbitMQ.Client.v6
+         karena paket itu menarik Microsoft.Extensions.* 10.0.8 transitif → bentrok lockstep net8 (Extensions 8.x,
+         ADR-0007) via transitive pinning. RabbitMQ.Client 6.8.1 deps minimal (nol Extensions) → lockstep aman.
+         Bukan cloud SDK (FF#1 aman); hanya di Platform.Local (adapter) + AppHost. -->
+    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.4.6" />
+    <PackageVersion Include="RabbitMQ.Client" Version="6.8.1" />
     <!-- Persistence & messaging rail (Phase 01b). EF Core stack di-lock-step 8.0.15
          (selaras dotnet-ef tooling 8.0.15). Bukan SDK cloud → FF#1 aman.
          Npgsql provider 8.0.11 (rilis 8.0.x terbaru) butuh EF Relational >= 8.0.11. -->
@@ -35,6 +43,9 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
     <!-- Integration tests: real Postgres via Testcontainers -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
+    <!-- Integration tests: real RabbitMQ via Testcontainers (ADR-0029 amendment) — bukti cross-process
+         event delivery lewat broker nyata (publish provider A → consume provider B). Selaras family 4.12.0. -->
+    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.12.0" />
     <!-- Phase 04a integration: WebApplicationFactory (gRPC read-API server in-proc) + GrpcChannel client.
          Mvc.Testing 8.0.15 selaras runtime net8 (ADR-0007); Grpc.Net.Client 2.80.0 lock-step gRPC stack. -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.15" />

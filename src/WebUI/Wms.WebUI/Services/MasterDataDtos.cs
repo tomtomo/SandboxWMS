@@ -3,8 +3,9 @@ using System.ComponentModel.DataAnnotations;
 namespace Wms.WebUI.Services;
 
 // What: read DTO + form model MasterData (selaras read model backend + CreateXxxRequest).
-// Mirror enum server (LocationType) — nilai int identik agar JSON int-deserialize benar; Type DIKIRIM
-// sebagai STRING enum-name saat create (backend Enum.TryParse).
+// LocationDto.Type = STRING enum-name (backend mengirim Type.ToString(); JsonDefaults.Web tanpa
+// JsonStringEnumConverter tak bisa deserialize enum dari string). Enum LocationType tetap dipakai di
+// FORM input + FILTER + param request (dikirim sbg string-name saat create/list; backend Enum.TryParse).
 public sealed record ProductDto(
     string Sku, string Name, string Uom,
     bool BatchTrackingRequired, bool ExpiryTrackingRequired, bool QcRequiredOnReceipt,
@@ -12,7 +13,7 @@ public sealed record ProductDto(
 
 public sealed record WarehouseDto(Guid WarehouseId, string Name, string Address, bool IsActive);
 
-public sealed record LocationDto(Guid LocationId, Guid WarehouseId, LocationType Type, string Code, bool IsActive);
+public sealed record LocationDto(Guid LocationId, Guid WarehouseId, string Type, string Code, bool IsActive);
 
 public enum LocationType
 {

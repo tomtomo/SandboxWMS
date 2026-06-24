@@ -113,6 +113,20 @@ public sealed class Stock : AuditableAggregateRoot<StockId>
         return Result.Success();
     }
 
+    // What: koreksi manual kuantitas (set absolut → newQty), DI LUAR siklus receive→pick overview §B
+    // Why: balance fisik bisa menyimpang dari sistem (cycle count, kerusakan, salah-hitung) → operator
+    // mengoreksi langsung. SENGAJA minimal: tak ada guard state (berlaku di state apa pun) & tak meng-emit
+    // event (tak ada konsumen downstream terdokumentasi). Satu invariant: kuantitas tak boleh negatif
+    // (Result.Failure, no-throw FF#7) — state tak berubah saat gagal.
+    public Result Adjust(int newQty)
+    {
+        if (newQty < 0)
+            return Result.Failure(StockErrors.NegativeQuantity);
+
+        Quantity = newQty;
+        return Result.Success();
+    }
+
     // What: transisi Allocated → Picked (overview §C5, dipicu PickingCompleted — ADR-0028)
     // Why: barang diambil dari rak ke staging area; menyimpan pickingTaskId + lokasi staging.
     public Result Pick(Guid pickingTaskId, string stagingLocationId)

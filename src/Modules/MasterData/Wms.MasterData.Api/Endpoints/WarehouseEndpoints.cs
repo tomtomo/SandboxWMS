@@ -34,6 +34,18 @@ public sealed class WarehouseEndpoints : IEndpoint
             return result.IsSuccess ? Results.NoContent() : result.ToProblemDetails();
         });
 
+        // TODO-AUTH: MasterData.ViewWarehouse
+        group.MapGet("/", async (
+            bool? isActive,
+            int? page,
+            int? pageSize,
+            IMasterDataReader reader,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await reader.ListWarehousesAsync(page ?? 1, pageSize ?? 20, isActive, cancellationToken);
+            return Results.Ok(result);
+        });
+
         group.MapGet("/{id:guid}", async (Guid id, IMasterDataReader reader, CancellationToken cancellationToken) =>
         {
             var warehouse = await reader.GetWarehouseAsync(id, cancellationToken);

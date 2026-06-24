@@ -13,6 +13,8 @@ public static class InboundApiExtensions
     {
         new CreateGoodsReceiptEndpoint().MapEndpoint(app);
         new ListGoodsReceiptsEndpoint().MapEndpoint(app);
+        new GetGoodsReceiptEndpoint().MapEndpoint(app);
+        new ListAttachmentsEndpoint().MapEndpoint(app);
         new ScanItemEndpoint().MapEndpoint(app);
         new DeclareScanCompleteEndpoint().MapEndpoint(app);
         new ResolveDiscrepancyEndpoint().MapEndpoint(app);

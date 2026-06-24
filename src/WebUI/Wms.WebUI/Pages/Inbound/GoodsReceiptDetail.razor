@@ -126,12 +126,11 @@ else
             else
             {
                 <MudTable Items="_attachments" Dense="true" Hover="true" Striped="true">
-                    <HeaderContent><MudTh>File</MudTh><MudTh>Tipe</MudTh><MudTh>Ukuran</MudTh><MudTh>Scan</MudTh><MudTh>Uploaded</MudTh></HeaderContent>
+                    <HeaderContent><MudTh>File</MudTh><MudTh>Tipe</MudTh><MudTh>Ukuran</MudTh><MudTh>Uploaded</MudTh></HeaderContent>
                     <RowTemplate>
                         <MudTd>@context.FileName</MudTd>
                         <MudTd>@ShortType(context.ContentType)</MudTd>
                         <MudTd>@FormatSize(context.SizeBytes)</MudTd>
-                        <MudTd><MudChip T="string" Size="Size.Small" Color="@ScanColor(context.ScanStatus)">@context.ScanStatus</MudChip></MudTd>
                         <MudTd>@context.UploadedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
                     </RowTemplate>
                 </MudTable>
@@ -253,8 +252,6 @@ else
     { "Good" => Color.Success, "WrongItem" => Color.Warning, "QcHold" => Color.Error, _ => Color.Default };
     private static Color DiscrepancyColor(string t) => t switch
     { "ShortDelivery" or "OverDelivery" => Color.Warning, "WrongItem" or "QcHold" => Color.Error, _ => Color.Default };
-    private static Color ScanColor(string s) => s switch
-    { "Clean" => Color.Success, "Infected" => Color.Error, "Pending" => Color.Warning, _ => Color.Default };
     private static string ShortType(string c) => c switch
     { "application/pdf" => "PDF", "image/jpeg" or "image/jpg" => "JPG", "image/png" => "PNG", "image/webp" => "WEBP", _ => c };
     private static string FormatSize(long b) => b switch
