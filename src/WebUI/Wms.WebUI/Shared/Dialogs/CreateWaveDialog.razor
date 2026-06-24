@@ -1,0 +1,56 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+@* Create wave: pilih order. Order-list = gap → input order GUID manual (1 per baris). Saat G1 landing,
+   ganti jadi multi-select dari ListOrdersAsync(status=New). Stock allocation + PickingTask otomatis (event). *@
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:520px;">
+        <MudAlert Severity="Severity.Info" Class="mb-3">Setelah submit: stock allocation FEFO + PickingTask dibuat otomatis via event flow.</MudAlert>
+        <MudTextField @bind-Value="_orderIdsText" Label="Order IDs (GUID, 1 per baris)" Lines="6"
+                      Variant="Variant.Outlined" Class="mb-1"
+                      HelperText="Order-list belum tersedia — tempel order GUID, satu per baris." />
+        @if (_error is not null)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Error">@_error</MudText>
+        }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : "Buat Wave")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    private string _orderIdsText = "";
+    private string? _error;
+    private bool _busy;
+
+    private async Task HandleSubmit()
+    {
+        _error = null;
+        var ids = new List<Guid>();
+        foreach (var line in _orderIdsText.Split(['\n', '\r', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!Guid.TryParse(line, out var id)) { _error = $"GUID tak valid: {line}"; return; }
+            ids.Add(id);
+        }
+        if (ids.Count == 0) { _error = "Minimal 1 order ID."; return; }
+
+        _busy = true;
+        var result = await Api.Outbound.CreateWaveAsync(ids);
+        _busy = false;
+        if (result.Success)
+        {
+            Snackbar.Add($"Wave dibuat: {result.Value}", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+            Nav.NavigateTo($"/outbound/waves/{result.Value}");
+        }
+        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

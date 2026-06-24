@@ -1,10 +1,11 @@
 @page "/goods-receipts"
-@inject InboundApiClient Inbound
+@inject WmsApiClient Api
 @inject TokenStore TokenStore
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>Goods Receipts</PageTitle>
-<MudText Typo="Typo.h4" GutterBottom="true">Goods Receipts</MudText>
+<PageHeader Title="Goods Receipts" />
 
 @if (!TokenStore.IsAuthenticated)
 {
@@ -39,7 +40,8 @@ else
                     <MudSpacer />
                     <MudButton StartIcon="@Icons.Material.Filled.Refresh" OnClick="Refresh" Size="Size.Small">Refresh</MudButton>
                 </div>
-                <MudTable Items="_result.Items" Hover="true" Dense="true" Class="mt-2">
+                <MudTable Items="_result.Items" Hover="true" Dense="true" Class="mt-2"
+                          T="GoodsReceiptListRow" OnRowClick="@(args => { if (args.Item is not null) GoToDetail(args.Item); })" RowStyle="cursor:pointer">
                     <HeaderContent>
                         <MudTh>GR</MudTh>
                         <MudTh>Warehouse</MudTh>
@@ -88,7 +90,7 @@ else
     {
         if (!TokenStore.IsAuthenticated)
             return;
-        _result = await Inbound.ListAsync(_page, PageSize);
+        _result = await Api.Inbound.ListAsync(_page, PageSize);
     }
 
     private async Task Refresh()
@@ -120,19 +122,23 @@ else
             .Where(line => !string.IsNullOrWhiteSpace(line.Sku))
             .Select(line => new CreateLine(line.Sku, line.ExpectedQty))
             .ToList();
-        var (ok, message) = await Inbound.CreateAsync(
+        var result = await Api.Inbound.CreateAsync(
             _warehouseId,
             string.IsNullOrWhiteSpace(_poRef) ? null : _poRef,
             string.IsNullOrWhiteSpace(_supplierId) ? null : _supplierId,
             lines);
         _busy = false;
-        Snackbar.Add(message, ok ? Severity.Success : Severity.Error);
-        if (ok)
+        Snackbar.Add(
+            result.Success ? $"GR dibuat: {result.Value}" : result.ErrorMessage!,
+            result.Success ? Severity.Success : Severity.Error);
+        if (result.Success)
         {
             _page = 1;
             await Load();
         }
     }
+
+    private void GoToDetail(GoodsReceiptListRow row) => Nav.NavigateTo($"/goods-receipts/{row.GrId}");
 
     private static string ShortId(Guid id) => id.ToString()[..8];
 

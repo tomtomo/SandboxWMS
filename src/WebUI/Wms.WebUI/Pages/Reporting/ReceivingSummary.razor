@@ -1,0 +1,36 @@
+@page "/reporting/receiving-summary"
+@inject WmsApiClient Api
+
+<PageTitle>Receiving Summary</PageTitle>
+<PageHeader Title="Receiving Summary" />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudTable T="ReceivingSummaryRow" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true">
+    <HeaderContent><MudTh>Supplier</MudTh><MudTh>Day</MudTh><MudTh>GR</MudTh><MudTh>Received</MudTh><MudTh>Rejected</MudTh><MudTh>Disc.Rate</MudTh></HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.SupplierId</MudTd>
+        <MudTd>@context.Day.ToString("yyyy-MM-dd")</MudTd>
+        <MudTd>@context.GrCount</MudTd>
+        <MudTd>@context.ReceivedQty</MudTd>
+        <MudTd>@context.RejectedQty</MudTd>
+        <MudTd>@context.DiscrepancyRate.ToString("P1")</MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Tidak ada data.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private string? _error;
+
+    private async Task<TableData<ReceivingSummaryRow>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.Reporting.ListReceivingSummaryAsync(state.Page + 1, state.PageSize, ct);
+        if (!result.Success) { _error = result.ErrorMessage; return new TableData<ReceivingSummaryRow> { Items = Array.Empty<ReceivingSummaryRow>(), TotalItems = 0 }; }
+        _error = null;
+        return new TableData<ReceivingSummaryRow> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+}

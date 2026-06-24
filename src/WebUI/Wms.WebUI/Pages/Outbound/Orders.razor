@@ -1,0 +1,73 @@
+@page "/outbound/orders"
+@inject WmsApiClient Api
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Outbound Orders</PageTitle>
+<PageHeader Title="Outbound Orders">
+    <Actions>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenCreate">Buat Order</MudButton>
+    </Actions>
+</PageHeader>
+
+@if (_gapMessage is not null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">@_gapMessage</MudAlert>
+}
+
+<MudPaper Class="pa-3 mb-4" Elevation="1">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudSelect T="OutboundOrderStatus?" @bind-Value="_status" Label="Status" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;">
+            @foreach (var s in Enum.GetValues<OutboundOrderStatus>())
+            {
+                <MudSelectItem T="OutboundOrderStatus?" Value="@((OutboundOrderStatus?)s)">@s</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton OnClick="ApplyFilter" Variant="Variant.Outlined">Apply</MudButton>
+        <MudButton OnClick="ResetFilter" Variant="Variant.Text">Reset</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudTable T="OrderSummaryDto" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table"
+          OnRowClick="@(args => { if (args.Item is not null) Nav.NavigateTo($"/outbound/orders/{args.Item.OrderId}"); })" RowStyle="cursor:pointer">
+    <HeaderContent>
+        <MudTh>Order</MudTh><MudTh>Customer</MudTh><MudTh>Ship To</MudTh><MudTh>Status</MudTh><MudTh>Lines</MudTh><MudTh>Total Qty</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.OrderId.ToString()[..8]</MudTd>
+        <MudTd>@context.CustomerId</MudTd>
+        <MudTd>@context.ShipTo</MudTd>
+        <MudTd><MudChip T="string" Size="Size.Small" Color="@OrderColor(context.Status)">@context.Status</MudChip></MudTd>
+        <MudTd>@context.LineCount</MudTd>
+        <MudTd>@context.TotalQty</MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Belum ada order.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private MudTable<OrderSummaryDto>? _table;
+    private OutboundOrderStatus? _status;
+    private string? _gapMessage;
+
+    private async Task<TableData<OrderSummaryDto>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.Outbound.ListOrdersAsync(state.Page + 1, state.PageSize, _status, ct);
+        if (!result.Success) { _gapMessage = result.ErrorMessage; return new TableData<OrderSummaryDto> { Items = Array.Empty<OrderSummaryDto>(), TotalItems = 0 }; }
+        _gapMessage = null;
+        return new TableData<OrderSummaryDto> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+
+    private void ApplyFilter() => _table?.ReloadServerData();
+    private void ResetFilter() { _status = null; _table?.ReloadServerData(); }
+
+    private async Task OpenCreate()
+    {
+        var dialog = await DialogService.ShowAsync<CreateOrderDialog>("Buat Order");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) _table?.ReloadServerData();
+    }
+
+    private static Color OrderColor(string s) => s switch
+    { "New" => Color.Info, "InProgress" => Color.Warning, "Closed" => Color.Success, _ => Color.Default };
+}

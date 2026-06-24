@@ -1,0 +1,12 @@
+@* Router interactive dalam circuit. DefaultLayout = MainLayout. *@
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <MudText Typo="Typo.h5">404 — halaman tak ditemukan.</MudText>
+        </LayoutView>
+    </NotFound>
+</Router>

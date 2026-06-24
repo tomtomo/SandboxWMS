@@ -1,0 +1,74 @@
+@inject WmsApiClient Api
+@inject TokenStore TokenStore
+@implements IDisposable
+
+@* In-app notification bell. Pakai TokenStore (bukan AuthenticationStateProvider — authZ deferred 07a).
+   Load inbox saat auth state berubah (hydrate/login). SignalR push real-time defer. *@
+@if (TokenStore.IsAuthenticated)
+{
+    <MudBadge Content="_unreadCount" Color="Color.Error" Overlap="true" Visible="_unreadCount > 0" Class="mx-2">
+        <MudMenu Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" aria-label="Notifications"
+                 AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            @if (_loading)
+            {
+                <MudMenuItem>Loading…</MudMenuItem>
+            }
+            else if (_items.Count == 0)
+            {
+                <MudMenuItem>Tidak ada notifikasi.</MudMenuItem>
+            }
+            else
+            {
+                @foreach (var n in _items.Take(8))
+                {
+                    <MudMenuItem>
+                        <MudText Typo="Typo.body2">@n.Title</MudText>
+                        <MudText Typo="Typo.caption">@n.QueuedAt.LocalDateTime.ToString("g")</MudText>
+                    </MudMenuItem>
+                }
+                <MudDivider />
+                <MudMenuItem Href="/notifications">Lihat semua</MudMenuItem>
+            }
+        </MudMenu>
+    </MudBadge>
+}
+
+@code {
+    private bool _loading = true;
+    private int _unreadCount;
+    private IReadOnlyList<InAppNotificationRow> _items = Array.Empty<InAppNotificationRow>();
+
+    protected override void OnInitialized() => TokenStore.OnChange += OnAuthChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async void OnAuthChanged() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (!TokenStore.IsAuthenticated || string.IsNullOrEmpty(TokenStore.UserId))
+        {
+            _items = Array.Empty<InAppNotificationRow>();
+            _unreadCount = 0;
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        try
+        {
+            _items = await Api.Notification.InboxAsync(TokenStore.UserId);
+            _unreadCount = _items.Count(n => n.Status != "Read");
+        }
+        catch { /* silent at boot */ }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose() => TokenStore.OnChange -= OnAuthChanged;
+}

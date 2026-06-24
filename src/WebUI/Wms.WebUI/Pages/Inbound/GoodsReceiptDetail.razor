@@ -1,0 +1,262 @@
+@page "/goods-receipts/{Id:guid}"
+@inject WmsApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>GR Detail</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_gr is null)
+{
+    <MudAlert Severity="Severity.Warning">@(_gapMessage ?? "GR tidak ditemukan.")</MudAlert>
+    <MudButton Href="/goods-receipts" Variant="Variant.Outlined" Class="mt-3" StartIcon="@Icons.Material.Filled.ArrowBack">Kembali ke List</MudButton>
+}
+else
+{
+    <PageHeader Title="@($"GR {_gr.PoRef}")">
+        <Actions>
+            @if (_status == GoodsReceiptStatus.InProgress)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.QrCodeScanner" Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenScanDialog">Scan Item</MudButton>
+                <MudButton StartIcon="@Icons.Material.Filled.CheckCircle" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="HandleCompleteScan" Disabled="@(_gr.ScannedLines.Count == 0)">Selesai Scan</MudButton>
+            }
+            else if (_status == GoodsReceiptStatus.Pending)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.CheckCircleOutline" Color="Color.Success" Variant="Variant.Filled" OnClick="OpenConfirmDialog">Confirm GR</MudButton>
+                <MudButton StartIcon="@Icons.Material.Filled.Block" Color="Color.Error" Variant="Variant.Outlined" OnClick="OpenHoldDialog">Hold GR</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    <MudPaper Class="pa-3 mb-4" Elevation="1">
+        <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+            <MudChip T="string" Size="Size.Medium" Color="@StatusColor(_gr.Status)">@_gr.Status</MudChip>
+            <div>
+                <MudText Typo="Typo.body2"><b>Supplier:</b> @_gr.SupplierId</MudText>
+                <MudText Typo="Typo.body2"><b>Dock:</b> @_gr.DockDoor</MudText>
+            </div>
+            <div>
+                <MudText Typo="Typo.body2"><b>Warehouse Id:</b> @_gr.WarehouseId</MudText>
+                <MudText Typo="Typo.body2"><b>GR ID:</b> @_gr.GoodsReceiptId</MudText>
+            </div>
+            @if (!string.IsNullOrEmpty(_gr.HoldReason))
+            {
+                <MudAlert Severity="Severity.Error" Class="flex-grow-1"><b>Hold Reason:</b> @_gr.HoldReason</MudAlert>
+            }
+        </MudStack>
+    </MudPaper>
+
+    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true">
+        <MudTabPanel Text="@($"Expected ({_gr.ExpectedLines.Count})")">
+            <MudTable Items="_gr.ExpectedLines" Dense="true" Hover="true" Striped="true">
+                <HeaderContent><MudTh>SKU</MudTh><MudTh>Expected Qty</MudTh><MudTh>UOM</MudTh></HeaderContent>
+                <RowTemplate><MudTd>@context.Sku</MudTd><MudTd>@context.ExpectedQty</MudTd><MudTd>@context.Uom</MudTd></RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Scanned ({_gr.ScannedLines.Count})")">
+            @if (_gr.ScannedLines.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">Belum ada line yang di-scan.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_gr.ScannedLines" Dense="true" Hover="true" Striped="true">
+                    <HeaderContent><MudTh>SKU</MudTh><MudTh>Actual Qty</MudTh><MudTh>Batch</MudTh><MudTh>Expiry</MudTh><MudTh>Line Status</MudTh></HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Sku</MudTd><MudTd>@context.ActualQty</MudTd>
+                        <MudTd>@(context.Batch ?? "-")</MudTd>
+                        <MudTd>@(context.Expiry?.ToString("yyyy-MM-dd") ?? "-")</MudTd>
+                        <MudTd><MudChip T="string" Size="Size.Small" Color="@LineStatusColor(context.LineStatus)">@context.LineStatus</MudChip></MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Discrepancies ({_gr.Discrepancies.Count})")">
+            @if (_gr.Discrepancies.Count == 0)
+            {
+                <MudAlert Severity="Severity.Success">Tidak ada discrepancy.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_gr.Discrepancies" Dense="true" Hover="true" Striped="true">
+                    <HeaderContent><MudTh>SKU</MudTh><MudTh>Type</MudTh><MudTh>Qty</MudTh><MudTh>Resolution</MudTh><MudTh Style="width:120px;">Actions</MudTh></HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Sku</MudTd>
+                        <MudTd><MudChip T="string" Size="Size.Small" Color="@DiscrepancyColor(context.Type)">@context.Type</MudChip></MudTd>
+                        <MudTd>@context.Qty</MudTd>
+                        <MudTd>
+                            @if (!string.IsNullOrEmpty(context.ResolutionAction))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">@context.ResolutionAction</MudChip>
+                                @if (!string.IsNullOrEmpty(context.ResolutionNote))
+                                {
+                                    <MudText Typo="Typo.caption" Class="ml-2">@context.ResolutionNote</MudText>
+                                }
+                            }
+                            else { <MudText Typo="Typo.body2" Color="Color.Warning">unresolved</MudText> }
+                        </MudTd>
+                        <MudTd>
+                            @if (_status == GoodsReceiptStatus.Pending && string.IsNullOrEmpty(context.ResolutionAction))
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => OpenResolveDialog(context))">Resolve</MudButton>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Attachments ({_attachments.Count})")">
+            <div class="d-flex justify-end mb-3">
+                <MudButton StartIcon="@Icons.Material.Filled.Upload" Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenUploadDialog">Upload Attachment</MudButton>
+            </div>
+            @if (_attachmentsGap is not null)
+            {
+                <MudAlert Severity="Severity.Warning">@_attachmentsGap</MudAlert>
+            }
+            else if (_attachments.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">Belum ada attachment.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_attachments" Dense="true" Hover="true" Striped="true">
+                    <HeaderContent><MudTh>File</MudTh><MudTh>Tipe</MudTh><MudTh>Ukuran</MudTh><MudTh>Scan</MudTh><MudTh>Uploaded</MudTh></HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.FileName</MudTd>
+                        <MudTd>@ShortType(context.ContentType)</MudTd>
+                        <MudTd>@FormatSize(context.SizeBytes)</MudTd>
+                        <MudTd><MudChip T="string" Size="Size.Small" Color="@ScanColor(context.ScanStatus)">@context.ScanStatus</MudChip></MudTd>
+                        <MudTd>@context.UploadedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+                <MudText Typo="Typo.caption" Class="mt-2">Download belum tersedia (gap — lihat webui-api-gaps.md).</MudText>
+            }
+        </MudTabPanel>
+    </MudTabs>
+
+    <MudButton Href="/goods-receipts" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mt-4">Kembali ke List</MudButton>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private GoodsReceiptDetailDto? _gr;
+    private GoodsReceiptStatus _status;
+    private IReadOnlyList<AttachmentDto> _attachments = Array.Empty<AttachmentDto>();
+    private string? _attachmentsGap;
+    private string? _gapMessage;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadGr();
+
+    private async Task LoadGr()
+    {
+        _loading = true;
+        var result = await Api.Inbound.GetDetailAsync(Id);
+        if (!result.Success)
+        {
+            _gapMessage = result.ErrorMessage;
+            _gr = null;
+        }
+        else
+        {
+            _gr = result.Value;
+            _status = Enum.TryParse<GoodsReceiptStatus>(_gr!.Status, out var s) ? s : GoodsReceiptStatus.InProgress;
+            await LoadAttachments();
+        }
+        _loading = false;
+    }
+
+    private async Task LoadAttachments()
+    {
+        var result = await Api.Inbound.ListAttachmentsAsync(Id);
+        if (result.Success) { _attachments = result.Value!; _attachmentsGap = null; }
+        else { _attachments = Array.Empty<AttachmentDto>(); _attachmentsGap = result.ErrorMessage; }
+    }
+
+    private async Task OpenScanDialog()
+    {
+        var parameters = new DialogParameters { [nameof(ScanLineDialog.GoodsReceiptId)] = Id };
+        var dialog = await DialogService.ShowAsync<ScanLineDialog>("Scan Item", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) await LoadGr();
+    }
+
+    private async Task HandleCompleteScan()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ConfirmDialog.Title)] = "Selesai Scan?",
+            [nameof(ConfirmDialog.Message)] = $"GR transition InProgress → Pending. Sistem compile discrepancies dari {_gr!.ScannedLines.Count} scanned vs {_gr.ExpectedLines.Count} expected.",
+            [nameof(ConfirmDialog.ConfirmText)] = "Selesai Scan",
+            [nameof(ConfirmDialog.ConfirmColor)] = Color.Secondary,
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Konfirmasi", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            var res = await Api.Inbound.CompleteScanAsync(Id);
+            Snackbar.Add(res.Success ? "Scan selesai. GR → Pending." : $"Gagal: {res.ErrorMessage}", res.Success ? Severity.Success : Severity.Error);
+            if (res.Success) await LoadGr();
+        }
+    }
+
+    private async Task OpenResolveDialog(DiscrepancyDto d)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ResolveDiscrepancyDialog.GoodsReceiptId)] = Id,
+            [nameof(ResolveDiscrepancyDialog.Existing)] = d,
+        };
+        var dialog = await DialogService.ShowAsync<ResolveDiscrepancyDialog>($"Resolve {d.Sku}", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) await LoadGr();
+    }
+
+    private async Task OpenConfirmDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ConfirmGoodsReceiptDialog.GoodsReceiptId)] = Id,
+            [nameof(ConfirmGoodsReceiptDialog.Discrepancies)] = _gr!.Discrepancies,
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmGoodsReceiptDialog>("Confirm GR", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) await LoadGr();
+    }
+
+    private async Task OpenHoldDialog()
+    {
+        var parameters = new DialogParameters { [nameof(HoldGoodsReceiptDialog.GoodsReceiptId)] = Id };
+        var dialog = await DialogService.ShowAsync<HoldGoodsReceiptDialog>("Hold GR", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) await LoadGr();
+    }
+
+    private async Task OpenUploadDialog()
+    {
+        var parameters = new DialogParameters { [nameof(UploadAttachmentDialog.GoodsReceiptId)] = Id };
+        var dialog = await DialogService.ShowAsync<UploadAttachmentDialog>("Upload Attachment", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) await LoadAttachments();
+    }
+
+    private static Color StatusColor(string s) => s switch
+    { "InProgress" => Color.Info, "Pending" => Color.Warning, "Confirmed" => Color.Success, "Hold" => Color.Error, _ => Color.Default };
+    private static Color LineStatusColor(string s) => s switch
+    { "Good" => Color.Success, "WrongItem" => Color.Warning, "QcHold" => Color.Error, _ => Color.Default };
+    private static Color DiscrepancyColor(string t) => t switch
+    { "ShortDelivery" or "OverDelivery" => Color.Warning, "WrongItem" or "QcHold" => Color.Error, _ => Color.Default };
+    private static Color ScanColor(string s) => s switch
+    { "Clean" => Color.Success, "Infected" => Color.Error, "Pending" => Color.Warning, _ => Color.Default };
+    private static string ShortType(string c) => c switch
+    { "application/pdf" => "PDF", "image/jpeg" or "image/jpg" => "JPG", "image/png" => "PNG", "image/webp" => "WEBP", _ => c };
+    private static string FormatSize(long b) => b switch
+    { >= 1024 * 1024 => $"{b / 1024.0 / 1024.0:0.0} MB", >= 1024 => $"{b / 1024.0:0.0} KB", _ => $"{b} B" };
+}

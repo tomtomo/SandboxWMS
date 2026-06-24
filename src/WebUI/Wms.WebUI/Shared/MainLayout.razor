@@ -1,8 +1,9 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject TokenStore TokenStore
 @inject NavigationManager Nav
+@inject ProtectedLocalStorage Storage
 
-@* What: MudBlazor providers — WAJIB sekali di root layout (theme/popover/dialog/snackbar) *@
 <MudThemeProvider />
 <MudPopoverProvider />
 <MudDialogProvider />
@@ -10,29 +11,75 @@
 
 <MudLayout>
     <MudAppBar Elevation="1">
-        <MudText Typo="Typo.h6" Class="mr-6">TomSandboxWMS</MudText>
-        <MudButton Href="/" Color="Color.Inherit">Login</MudButton>
-        <MudButton Href="/goods-receipts" Color="Color.Inherit">Goods Receipts</MudButton>
-        <MudButton Href="/stock" Color="Color.Inherit">Stock &amp; Reports</MudButton>
-        <MudButton Href="/notifications" Color="Color.Inherit">Notifications</MudButton>
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-2">TomSandboxWMS</MudText>
         <MudSpacer />
+        <NotificationBell />
         @if (TokenStore.IsAuthenticated)
         {
             <MudText Class="mr-3">@TokenStore.Username</MudText>
             <MudButton Color="Color.Inherit" OnClick="Logout">Logout</MudButton>
         }
+        else
+        {
+            <MudButton Href="/" Color="Color.Inherit">Login</MudButton>
+        }
     </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="1"
+               Variant="DrawerVariant.Mini" OpenMiniOnHover="true">
+        <NavMenu />
+    </MudDrawer>
+
     <MudMainContent>
         <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
-            @Body
+            @if (TokenStore.Hydrated)
+            {
+                @Body
+            }
+            else
+            {
+                @* tunggu hydrate dari ProtectedLocalStorage (sekali per circuit) sebelum page init *@
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+            }
         </MudContainer>
     </MudMainContent>
 </MudLayout>
 
 @code {
-    private void Logout()
+    private bool _drawerOpen = true;
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    protected override void OnInitialized() => TokenStore.OnChange += StateHasChanged;
+
+    // hydrate sekali, di interactive render pertama (JS interop ProtectedLocalStorage tersedia, HttpContext tak dibutuhkan)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || TokenStore.Hydrated)
+            return;
+
+        var token = await Storage.GetAsync<string>("wms.access");
+        if (token.Success && !string.IsNullOrEmpty(token.Value))
+        {
+            var username = await Storage.GetAsync<string>("wms.username");
+            var userId = await Storage.GetAsync<string>("wms.userId");
+            TokenStore.SetSession(
+                token.Value,
+                username.Value ?? string.Empty,
+                string.IsNullOrEmpty(userId.Value) ? null : userId.Value);
+        }
+        TokenStore.MarkHydrated(); // selalu set — agar @Body render walau tanpa token (guard internal page tetap jalan)
+    }
+
+    private async Task Logout()
     {
         TokenStore.Clear();
+        await Storage.DeleteAsync("wms.access");
+        await Storage.DeleteAsync("wms.username");
+        await Storage.DeleteAsync("wms.userId");
         Nav.NavigateTo("/");
     }
+
+    public void Dispose() => TokenStore.OnChange -= StateHasChanged;
 }

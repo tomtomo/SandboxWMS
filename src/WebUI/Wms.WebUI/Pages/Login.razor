@@ -1,8 +1,9 @@
 @page "/"
-@inject AuthApiClient Auth
+@inject WmsApiClient Api
 @inject TokenStore TokenStore
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject ProtectedLocalStorage Storage
 
 <PageTitle>Login</PageTitle>
 <MudText Typo="Typo.h4" GutterBottom="true">Login</MudText>
@@ -34,16 +35,24 @@ else
     private async Task DoLogin()
     {
         _busy = true;
-        var error = await Auth.LoginAsync(_username, _password);
+        var result = await Api.Auth.LoginAsync(_username, _password);
+        if (result.Success)
+        {
+            TokenStore.SetSession(result.Value!.AccessToken, _username, null);
+            TokenStore.SetUserId(await Api.Auth.MeAsync());
+            await Storage.SetAsync("wms.access", result.Value!.AccessToken);
+            await Storage.SetAsync("wms.username", _username);
+            await Storage.SetAsync("wms.userId", TokenStore.UserId ?? string.Empty);
+        }
         _busy = false;
-        if (error is null)
+        if (result.Success)
         {
             Snackbar.Add("Login sukses.", Severity.Success);
             Nav.NavigateTo("/goods-receipts");
         }
         else
         {
-            Snackbar.Add(error, Severity.Error);
+            Snackbar.Add(result.ErrorMessage!, Severity.Error);
         }
     }
 }

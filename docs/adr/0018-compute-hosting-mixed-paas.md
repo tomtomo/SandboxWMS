@@ -84,3 +84,11 @@ Pemilihan layanan konkret per environment hidup di `deploy/` (IaC), bukan di str
 ## Sumber
 
 Microsoft Learn — *AZ-204: Develop Azure compute solutions*; *Azure Container Apps* (+ KEDA); *App Service* (slots, plan, ARR affinity); *Azure Functions* (isolated worker, triggers & bindings); *API Management*. · Google Cloud — *Cloud Run*; *Cloud Functions 2nd gen*; *Pub/Sub push*; *API Gateway / Apigee*; *PCD exam guide*. · Newman, *Building Microservices* 2e — deployment & "consistency vs heterogeneity". · dotnet/eShop — host model (containers + workers).
+
+## Amandemen — WebUI hosting idiom (2026-06-24)
+
+`Wms.WebUI` di-upgrade dari **classic Blazor Server** (`_Host.cshtml`, `AddServerSideBlazor`, `MapBlazorHub`) ke **Blazor Web App + InteractiveServer** (`AddRazorComponents().AddInteractiveServerComponents()`, `MapRazorComponents<App>().AddInteractiveServerRenderMode()`, render mode `InteractiveServerRenderMode(prerender: false)`) — mengeksekusi catatan "revisit" Phase 04e (idiom .NET 8).
+
+**Rationale compute TAK berubah:** tetap **server interactivity** (SignalR circuit, stateful) → tetap butuh compute **always-on** (App Service / Cloud Run min-instances≥1 + session affinity, Phase 05c/06c). Yang berubah hanya **idiom project template**, bukan model hosting/compute. Keputusan ADR-0018 tetap berlaku penuh.
+
+**Token persistence:** in-memory circuit `TokenStore` + `ProtectedLocalStorage` (encrypted) untuk survive reload (bukan HttpOnly cookie — menghindari static-form login + plumbing auth-middleware yang menyenggol Phase 07a). Revisit ke HttpOnly cookie + full auth saat **Phase 07a** (authZ wire-up). Ref: `docs/working-docs/plans/webui-maturity-design.md` §3.2.

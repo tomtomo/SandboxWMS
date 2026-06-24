@@ -1,0 +1,29 @@
+@* Side nav. Tumbuh per milestone: M1 MasterData group, M2 Inbound detail, M3 Inventory group,
+   M4 Outbound group, M5 Reporting. authZ visibility gating ditunda ke Phase 07a. *@
+<MudNavMenu>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
+    <MudNavGroup Title="Master Data" Icon="@Icons.Material.Filled.Inventory2" Expanded="false">
+        <MudNavLink Href="/master-data/products" Icon="@Icons.Material.Filled.QrCode2">Products</MudNavLink>
+        <MudNavLink Href="/master-data/warehouses" Icon="@Icons.Material.Filled.Warehouse">Warehouses</MudNavLink>
+        <MudNavLink Href="/master-data/locations" Icon="@Icons.Material.Filled.LocationOn">Locations</MudNavLink>
+    </MudNavGroup>
+    <MudNavGroup Title="Inbound" Icon="@Icons.Material.Filled.MoveToInbox" Expanded="false">
+        <MudNavLink Href="/goods-receipts" Icon="@Icons.Material.Filled.Receipt">Goods Receipts</MudNavLink>
+    </MudNavGroup>
+    <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Storage" Expanded="false">
+        <MudNavLink Href="/inventory/stocks" Icon="@Icons.Material.Filled.Storage">Stocks</MudNavLink>
+        <MudNavLink Href="/inventory/putaway-tasks" Icon="@Icons.Material.Filled.AddTask">Putaway Tasks</MudNavLink>
+    </MudNavGroup>
+    <MudNavGroup Title="Outbound" Icon="@Icons.Material.Filled.LocalShipping" Expanded="false">
+        <MudNavLink Href="/outbound/orders" Icon="@Icons.Material.Filled.Receipt">Orders</MudNavLink>
+        <MudNavLink Href="/outbound/waves" Icon="@Icons.Material.Filled.Waves">Waves</MudNavLink>
+        <MudNavLink Href="/outbound/picking-tasks" Icon="@Icons.Material.Filled.PlaylistAddCheck">Picking Tasks</MudNavLink>
+    </MudNavGroup>
+    <MudNavGroup Title="Reporting" Icon="@Icons.Material.Filled.Analytics" Expanded="false">
+        <MudNavLink Href="/reporting/stock-on-hand" Icon="@Icons.Material.Filled.Storage">Stock on Hand</MudNavLink>
+        <MudNavLink Href="/reporting/receiving-summary" Icon="@Icons.Material.Filled.MoveToInbox">Receiving Summary</MudNavLink>
+        <MudNavLink Href="/reporting/dispatch-summary" Icon="@Icons.Material.Filled.LocalShipping">Dispatch Summary</MudNavLink>
+        <MudNavLink Href="/reporting/operator-activity" Icon="@Icons.Material.Filled.Badge">Operator Activity</MudNavLink>
+    </MudNavGroup>
+    <MudNavLink Href="/notifications" Icon="@Icons.Material.Filled.Notifications">Notifications</MudNavLink>
+</MudNavMenu>

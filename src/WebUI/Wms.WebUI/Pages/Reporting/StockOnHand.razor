@@ -1,0 +1,48 @@
+@page "/reporting/stock-on-hand"
+@inject WmsApiClient Api
+
+<PageTitle>Stock on Hand</PageTitle>
+<PageHeader Title="Stock on Hand" />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudPaper Class="pa-3 mb-4" Elevation="1">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudTextField @bind-Value="_warehouseId" Label="Warehouse Id" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;" />
+        <MudTextField @bind-Value="_sku" Label="SKU" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;" />
+        <MudButton OnClick="ApplyFilter" Variant="Variant.Outlined">Apply</MudButton>
+        <MudButton OnClick="ResetFilter" Variant="Variant.Text">Reset</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudTable T="StockOnHandRow" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table">
+    <HeaderContent><MudTh>Warehouse</MudTh><MudTh>SKU</MudTh><MudTh>Batch</MudTh><MudTh>Qty On Hand</MudTh></HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.WarehouseId</MudTd><MudTd>@context.Sku</MudTd><MudTd>@context.Batch</MudTd><MudTd>@context.QtyOnHand</MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Tidak ada stock.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private MudTable<StockOnHandRow>? _table;
+    private string _warehouseId = "";
+    private string _sku = "";
+    private string? _error;
+
+    private async Task<TableData<StockOnHandRow>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.Reporting.ListStockOnHandAsync(state.Page + 1, state.PageSize,
+            string.IsNullOrWhiteSpace(_sku) ? null : _sku,
+            string.IsNullOrWhiteSpace(_warehouseId) ? null : _warehouseId, ct);
+        if (!result.Success) { _error = result.ErrorMessage; return new TableData<StockOnHandRow> { Items = Array.Empty<StockOnHandRow>(), TotalItems = 0 }; }
+        _error = null;
+        return new TableData<StockOnHandRow> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+
+    private void ApplyFilter() => _table?.ReloadServerData();
+    private void ResetFilter() { _warehouseId = ""; _sku = ""; _table?.ReloadServerData(); }
+}

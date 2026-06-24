@@ -1,0 +1,54 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+@* Create Product (M1: create-only; update = gap). *@
+<MudDialog>
+    <DialogContent>
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_form.Sku" Label="SKU" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Name" Label="Name" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Uom" Label="UOM (carton, piece, kg, ...)" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <MudSwitch @bind-Value="_form.BatchTrackingRequired" Label="Batch Tracking Required" Color="Color.Primary" Class="mb-2" />
+            <MudSwitch @bind-Value="_form.ExpiryTrackingRequired" Label="Expiry Tracking Required" Color="Color.Primary" Class="mb-2" />
+            <MudSwitch @bind-Value="_form.QcRequiredOnReceipt" Label="QC Required on Receipt" Color="Color.Primary" Class="mb-3" />
+            <MudNumericField @bind-Value="_form.ShelfLifeDays" Label="Shelf Life Days (optional)" Min="1" Variant="Variant.Outlined" Class="mb-3" />
+            <ValidationSummary />
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "Menyimpan..." : "Simpan")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    private ProductForm _form = new();
+    private EditContext _editContext = default!;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_form);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!_editContext.Validate()) return;
+        _busy = true;
+        var result = await Api.MasterData.CreateProductAsync(_form);
+        _busy = false;
+        if (result.Success)
+        {
+            Snackbar.Add("Product dibuat.", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}
