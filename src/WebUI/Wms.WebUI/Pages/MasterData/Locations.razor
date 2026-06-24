@@ -98,12 +98,12 @@
         }
     }
 
-    private static Color TypeColor(LocationType type) => type switch
+    private static Color TypeColor(string type) => type switch
     {
-        LocationType.ReceivingArea => Color.Info,
-        LocationType.Rack => Color.Success,
-        LocationType.QuarantineArea => Color.Error,
-        LocationType.StagingArea => Color.Warning,
+        "ReceivingArea" => Color.Info,
+        "Rack" => Color.Success,
+        "QuarantineArea" => Color.Error,
+        "StagingArea" => Color.Warning,
         _ => Color.Default,
     };
 }

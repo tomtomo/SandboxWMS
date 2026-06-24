@@ -47,3 +47,25 @@ Akibatnya `OutboxDispatcher` di host Inbound mem-publish ke publisher in-proc-ny
 - Transport Local lintas-proses (Redis / Pub-Sub emulator / `LISTEN-NOTIFY`) — di-defer (lihat "Kapan ditinjau ulang").
 - Adapter broker konkret Azure Service Bus / GCP Pub/Sub = Phase 05/06 ([ADR-0002](0002-tri-cloud-hexagonal.md), [ADR-0018](0018-compute-hosting-mixed-paas.md)).
 - Cross-broker trace-context saat hop broker nyata = [ADR-0024](0024-cross-broker-trace-context-propagation.md) (baru relevan ketika broker lintas-proses aktif).
+
+---
+
+## Amandemen — RabbitMQ sebagai broker Local lintas-proses (2026-06-25)
+
+**Pemicu (sesuai "Kapan ditinjau ulang"):** Pematangan `Wms.WebUI` menuntut **happy-path E2E lewat app yang berjalan** — alur bisnis penuh (GR Confirmed → Inventory buat Stock+Putaway → Wave → alokasi → PickingTask → dispatch → stock keluar) harus mengalir antar-modul saat UI dipakai, bukan cuma terbukti di test 1-proses. Inilah skenario "WebUI lokal yang bergantung pada efek Inventory" yang diantisipasi di atas. Keputusan Tom (2026-06-25): aktifkan delivery lintas-proses Local sekarang.
+
+**Keputusan:** tambah **RabbitMQ** sebagai adapter transport Local lintas-proses, **tanpa menyentuh core** (sesuai janji "cukup `Platform.Local`"):
+- AppHost ([ADR-0008](0008-aspire-distributed-local.md)) men-declare resource `AddRabbitMQ("rabbitmq").WithManagementPlugin()` (container); connection string di-inject ke 5 host event-driven (inbound/inventory/outbound/reporting/notification) via `WithReference`.
+- `Platform.Local` dapat adapter baru: `RabbitMqMessagePublisher` (port `IMessagePublisher` → publish ke topic exchange `wms.events`, routing key = `LogicalName`, publisher-confirm) + `RabbitMqConsumer`/`RabbitMqConsumerHostedService` (queue durable per modul, bind `#`, `AsyncEventingBasicConsumer`). **Subscribe-point yang dulu IDLE kini tersambung ke adapter ini.**
+- Port baru **`IMessageSubscriber`** (`BuildingBlocks.Application.Messaging`) menyeragamkan blok subscribe host: di-implement `InMemoryMessagePublisher` (in-proc) DAN `RabbitMqConsumer` (broker). Pemilihan adapter = ada/tidaknya `ConnectionStrings:rabbitmq` (Aspire → RabbitMQ; test/single-proses → in-proc).
+- Rail **Outbox → broker → Inbox** ([ADR-0005](0005-event-driven-outbox.md)), `ConsumerDeadLetterPipeline` (retry→DLQ), dan dispatcher per-modul **TAK berubah** — hanya transport publisher/subscriber yang di-swap (bukti kekuatan seam Hexagonal, [ADR-0002](0002-tri-cloud-hexagonal.md)). `→ Canon: Hohpe & Woolf (EIP) Guaranteed Delivery + Dead Letter; Kleppmann (DDIA) at-least-once + idempotent receiver.`
+
+**Yang dipertahankan:** `InMemoryMessagePublisher` **tetap ada** — integration test choreography 1-proses (`WalkingSkeletonChainTests`, `CoreFlowE2ETests`) menyusun banyak modul dalam satu proses berbagi satu publisher; itu tetap gate DoD yang keras. RabbitMQ tak menggantikan bukti test, ia menambah jalur live.
+
+**Trade-off:** Local kini butuh **container RabbitMQ** (Docker) untuk chain multi-proses penuh; test tetap in-proc (nol broker). RabbitMQ adalah **broker dev/Local** — **bukan** target cloud: adapter Azure Service Bus / GCP Pub/Sub tetap Phase 05/06. Nilainya: jalur Local kini meng-exercise bentuk-broker nyata (async, at-least-once, DLQ, ordering per-queue) → mengurangi risiko integrasi yang dulu sepenuhnya digeser ke P05/06.
+
+**Catatan paket (lockstep net8, [ADR-0007](0007-net8-lts-baseline.md)):** host net8 pakai `RabbitMQ.Client` **6.x** langsung (API sync `IModel`) via `Platform.Local` — **sengaja BUKAN** `Aspire.RabbitMQ.Client.v6`, yang menarik `Microsoft.Extensions.* 10.0.8` transitif dan bentrok lockstep net8 lewat transitive pinning. `Aspire.Hosting.RabbitMQ` (butuh `RabbitMQ.Client` 7.x) hanya di AppHost (net10, tak bicara AMQP) via `VersionOverride` — proses terpisah, versi beda tak bentrok.
+
+**Konsekuensi lanjutan:** [ADR-0024](0024-cross-broker-trace-context-propagation.md) (cross-broker trace-context) kini **relevan** — hop broker lintas-proses aktif. `MessageEnvelope.Traceparent/Tracestate` masih `null` (TODO-07B di `OutboxExtensions.AddToOutbox`); pengisian dari `Activity.Current` menyusul saat Phase 07b agar trace utuh menembus hop RabbitMQ. Tidak memblok fungsi delivery.
+
+**Status amandemen:** Accepted (2026-06-25). Tak men-*supersede* keputusan asli (in-proc + test 1-proses tetap berlaku untuk test); menambah jalur broker Local lintas-proses yang dulu di-defer.

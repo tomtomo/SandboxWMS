@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wms.BuildingBlocks.Application.Pagination;
 using Wms.MasterData.Application.Abstractions;
 using Wms.MasterData.Application.ReadModels;
 using Wms.MasterData.Domain;
@@ -56,6 +57,122 @@ internal sealed class MasterDataReader(MasterDataDbContext db) : IMasterDataRead
             var product = await db.Products.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == new ProductId(sku), cancellationToken);
             return product is null ? null : ToReadModel(product);
+        }
+        finally
+        {
+            db.IncludeInactive = false;
+        }
+    }
+
+    // What: paginated list Product untuk list-API manajemen (CQRS read-side; ADR-0004/0011)
+    // How: IncludeInactive=true (try/finally reset, ADR-0014 targeted-bypass) agar baris inactive terlihat;
+    // filter isActive hanya bila HasValue; search via EF.Functions.ILike pada Name SAJA (case-insensitive,
+    // ditranslate ke Postgres ILIKE) — TIDAK memfilter ProductId/SKU (strongly-typed id mungkin tak
+    // ter-translate; SKU-search di-catat sebagai follow-up). Count→OrderBy(Name)→Skip/Take→materialize→map.
+    public async Task<PagedResult<ProductListItem>> ListProductsAsync(
+        int page, int pageSize, bool? isActive, string? search, CancellationToken ct = default)
+    {
+        var (safePage, safeSize) = PageRequest.From(page, pageSize);
+
+        db.IncludeInactive = true;
+        try
+        {
+            var query = db.Products.AsNoTracking();
+            if (isActive.HasValue)
+                query = query.Where(p => p.IsActive == isActive.Value);
+            // TODO-FOLLOWUP: SKU-search — ProductId (strongly-typed) belum difilter (translasi tak terjamin).
+            if (!string.IsNullOrWhiteSpace(search))
+                query = query.Where(p => EF.Functions.ILike(p.Name, $"%{search}%"));
+
+            var totalCount = await query.CountAsync(ct);
+
+            var products = await query
+                .OrderBy(p => p.Name)
+                .Skip((safePage - 1) * safeSize)
+                .Take(safeSize)
+                .ToListAsync(ct);
+
+            var items = products
+                .Select(p => new ProductListItem(
+                    p.Id.Value, p.Name, p.Uom, p.BatchTrackingRequired,
+                    p.ExpiryTrackingRequired, p.QcRequiredOnReceipt, p.ShelfLifeDays, p.IsActive))
+                .ToList();
+
+            return new PagedResult<ProductListItem>(items, safePage, safeSize, totalCount);
+        }
+        finally
+        {
+            db.IncludeInactive = false;
+        }
+    }
+
+    // What: paginated list Warehouse untuk list-API manajemen (CQRS read-side; ADR-0004/0011)
+    // How: IncludeInactive bypass (try/finally) → filter isActive opsional → Count → OrderBy(Name) → page → map.
+    public async Task<PagedResult<WarehouseListItem>> ListWarehousesAsync(
+        int page, int pageSize, bool? isActive, CancellationToken ct = default)
+    {
+        var (safePage, safeSize) = PageRequest.From(page, pageSize);
+
+        db.IncludeInactive = true;
+        try
+        {
+            var query = db.Warehouses.AsNoTracking();
+            if (isActive.HasValue)
+                query = query.Where(w => w.IsActive == isActive.Value);
+
+            var totalCount = await query.CountAsync(ct);
+
+            var warehouses = await query
+                .OrderBy(w => w.Name)
+                .Skip((safePage - 1) * safeSize)
+                .Take(safeSize)
+                .ToListAsync(ct);
+
+            var items = warehouses
+                .Select(w => new WarehouseListItem(w.Id.Value, w.Name, w.Address, w.IsActive))
+                .ToList();
+
+            return new PagedResult<WarehouseListItem>(items, safePage, safeSize, totalCount);
+        }
+        finally
+        {
+            db.IncludeInactive = false;
+        }
+    }
+
+    // What: paginated list Location untuk list-API manajemen (CQRS read-side; ADR-0004/0011)
+    // How: IncludeInactive bypass (try/finally) → filter warehouseId/type/isActive opsional → Count →
+    // OrderBy(Code) → page → materialize → map (Type=enum→string via ToString(), bebas batasan translasi).
+    public async Task<PagedResult<LocationListItem>> ListLocationsAsync(
+        int page, int pageSize, Guid? warehouseId, LocationType? type, bool? isActive, CancellationToken ct = default)
+    {
+        var (safePage, safeSize) = PageRequest.From(page, pageSize);
+
+        db.IncludeInactive = true;
+        try
+        {
+            var query = db.Locations.AsNoTracking();
+            if (warehouseId.HasValue)
+                query = query.Where(l => l.WarehouseId == new WarehouseId(warehouseId.Value));
+            if (type.HasValue)
+                query = query.Where(l => l.Type == type.Value);
+            if (isActive.HasValue)
+                query = query.Where(l => l.IsActive == isActive.Value);
+
+            var totalCount = await query.CountAsync(ct);
+
+            var locations = await query
+                .OrderBy(l => l.Code)
+                .Skip((safePage - 1) * safeSize)
+                .Take(safeSize)
+                .ToListAsync(ct);
+
+            var items = locations
+                .Select(l => new LocationListItem(
+                    l.Id.Value, l.WarehouseId.Value, l.Type.ToString(), l.Code, l.IsActive))
+                .ToList();
+
+            return new PagedResult<LocationListItem>(items, safePage, safeSize, totalCount);
         }
         finally
         {

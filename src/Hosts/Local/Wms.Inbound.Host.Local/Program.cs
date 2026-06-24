@@ -26,7 +26,16 @@ var inboundConnection = builder.Configuration.GetConnectionString("inbounddb")
 
 builder.Services.AddInboundApplication();
 builder.Services.AddInboundInfrastructure(inboundConnection);
-builder.Services.AddLocalMessaging();
+
+// messaging transport (ADR-0029 amendment): RabbitMQ broker bila ConnectionStrings:rabbitmq tersedia (Aspire)
+// → cross-process delivery NYATA (Outbox → exchange "wms.events"); else in-proc fallback (test 1-proses).
+// Inbound = producer-only (emit GRConfirmed via Outbox) — tak meng-consume, jadi tak ada subscribe-point.
+var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq");
+if (!string.IsNullOrWhiteSpace(rabbitConn))
+    builder.Services.AddRabbitMqMessaging(rabbitConn, "inbound");
+else
+    builder.Services.AddLocalMessaging();
+
 builder.Services.AddOutboxDispatcher();
 
 // Phase 02c: host HTTP → identitas dari HttpContext/JWT (ICurrentUser) + audit-log store Local.

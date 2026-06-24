@@ -12,6 +12,9 @@ public static class InventoryApiExtensions
     public static IEndpointRouteBuilder MapInventoryEndpoints(this IEndpointRouteBuilder app)
     {
         new CompletePutawayEndpoint().MapEndpoint(app);
+        new ListStocksEndpoint().MapEndpoint(app);
+        new ListPutawayTasksEndpoint().MapEndpoint(app);
+        new AdjustStockEndpoint().MapEndpoint(app);
         return app;
     }
 }

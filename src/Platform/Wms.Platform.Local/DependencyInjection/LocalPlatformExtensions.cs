@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
 using Wms.BuildingBlocks.Application.Auditing;
 using Wms.BuildingBlocks.Application.Caching;
 using Wms.BuildingBlocks.Application.Idempotency;
@@ -16,17 +18,64 @@ using Wms.Platform.Local.Storage;
 
 namespace Wms.Platform.Local.DependencyInjection;
 
-// What: composition adapter Local (port → implementasi in-proc/Postgres)
-// Why: host lokal cukup AddLocalMessaging() untuk memasang publisher in-proc + DLQ
-// Postgres. Pemilihan adapter = keputusan deploy-time; di sini env Local.
-// How: InMemoryMessagePublisher singleton, juga di-expose sebagai dirinya sendiri agar
-// konsumer in-proc bisa Subscribe(); LocalDeadLetterStore scoped (butuh DbContext scoped).
+// What: composition adapter Local (port → implementasi in-proc/Postgres/RabbitMQ)
+// Why: host lokal cukup AddLocalMessaging() (in-proc, single-process/test) ATAU AddRabbitMqMessaging()
+// (broker, cross-process Aspire). Pemilihan adapter = keputusan deploy-time (ada/tidaknya broker).
+// How: InMemoryMessagePublisher singleton di-expose sebagai IMessagePublisher + IMessageSubscriber agar
+// blok subscribe host seragam; LocalDeadLetterStore scoped (butuh DbContext scoped).
 public static class LocalPlatformExtensions
 {
     public static IServiceCollection AddLocalMessaging(this IServiceCollection services)
     {
         services.AddSingleton<InMemoryMessagePublisher>();
         services.AddSingleton<IMessagePublisher>(sp => sp.GetRequiredService<InMemoryMessagePublisher>());
+        services.AddSingleton<IMessageSubscriber>(sp => sp.GetRequiredService<InMemoryMessagePublisher>());
+        services.AddScoped<IDeadLetterStore, LocalDeadLetterStore>();
+        return services;
+    }
+
+    // What: composition adapter messaging RabbitMQ (ADR-0029 amendment) — cross-process delivery NYATA di Local.
+    // Why: host dgn ConnectionStrings:rabbitmq (di-inject Aspire AddRabbitMQ) memakai ini ALIH-ALIH
+    // AddLocalMessaging → publish/consume lewat broker, mengaktifkan subscribe-point yang dulu IDLE (ADR-0029).
+    // Outbox/Inbox/DLQ rail TAK berubah — hanya transport publisher/subscriber yang di-swap (Hexagonal).
+    // How: IConnection singleton dari connection string (DispatchConsumersAsync untuk AsyncEventingBasicConsumer;
+    // retry connect awal — broker bisa baru bangun walau Aspire WaitFor). publisher + consumer-registry +
+    // hosted consumer service; IDeadLetterStore tetap Postgres (sama dgn in-proc). queueName = nama queue
+    // durable per modul consumer (producer-only host: tetap kirim nama, queue tak di-declare bila nol subscriber).
+    public static IServiceCollection AddRabbitMqMessaging(
+        this IServiceCollection services, string connectionString, string queueName)
+    {
+        services.AddSingleton(new RabbitMqMessagingOptions { QueueName = queueName });
+
+        services.AddSingleton<IConnection>(sp =>
+        {
+            var factory = new ConnectionFactory
+            {
+                Uri = new Uri(connectionString),
+                DispatchConsumersAsync = true,    // AsyncEventingBasicConsumer (handler di-await)
+                AutomaticRecoveryEnabled = true,  // recover connection/channel setelah blip jaringan/broker
+            };
+            var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Wms.RabbitMqConnection");
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return factory.CreateConnection($"wms-{queueName}");
+                }
+                catch (Exception ex) when (attempt < 10)
+                {
+                    // broker bisa belum listen walau Aspire WaitFor lewat (race health-check vs port listener)
+                    logger.LogWarning(ex, "Connect RabbitMQ gagal (attempt {Attempt}/10); retry 2s.", attempt);
+                    Thread.Sleep(TimeSpan.FromSeconds(2));
+                }
+            }
+        });
+
+        services.AddSingleton<RabbitMqMessagePublisher>();
+        services.AddSingleton<IMessagePublisher>(sp => sp.GetRequiredService<RabbitMqMessagePublisher>());
+        services.AddSingleton<RabbitMqConsumer>();
+        services.AddSingleton<IMessageSubscriber>(sp => sp.GetRequiredService<RabbitMqConsumer>());
+        services.AddHostedService<RabbitMqConsumerHostedService>();
         services.AddScoped<IDeadLetterStore, LocalDeadLetterStore>();
         return services;
     }

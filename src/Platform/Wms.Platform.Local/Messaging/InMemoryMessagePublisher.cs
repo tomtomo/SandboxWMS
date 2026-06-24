@@ -4,14 +4,16 @@ using Wms.BuildingBlocks.Application.Messaging;
 
 namespace Wms.Platform.Local.Messaging;
 
-// What: Adapter Local untuk port IMessagePublisher (in-proc pub/sub)
-// Why: stand-in broker untuk pengembangan lokal (Aspire) tanpa Service Bus/Pub/Sub —
-// adapter konkret yang dipilih saat deploy=Local. Exception per-subscriber diisolasi
-// supaya satu handler error tak menggagalkan publish/handler lain: semantik broker =
-// "publish sukses = pesan masuk channel", kegagalan konsumer urusan retry/Inbox.
-// How: subscriber didaftar via Subscribe() (kapabilitas Local-only, bukan di port);
-// PublishAsync fan-out ke semua subscriber, bungkus tiap pemanggilan dengan try/catch.
-public sealed class InMemoryMessagePublisher(ILogger<InMemoryMessagePublisher> logger) : IMessagePublisher
+// What: Adapter Local untuk port IMessagePublisher + IMessageSubscriber (in-proc pub/sub)
+// Why: stand-in broker untuk SINGLE-PROCESS (integration test 1-proses + fallback host tanpa broker).
+// Cross-process delivery nyata dilayani adapter RabbitMQ (RabbitMqConsumer/Publisher, ADR-0029 amendment);
+// in-proc ini tetap dipertahankan karena test choreography (CoreFlowE2ETests) menyusun banyak modul dalam
+// SATU proses berbagi satu publisher ini. Exception per-subscriber diisolasi supaya satu handler error tak
+// menggagalkan publish/handler lain: semantik broker = "publish sukses = pesan masuk channel".
+// How: Subscribe() kini bagian dari port IMessageSubscriber (seragam dgn adapter broker); PublishAsync
+// fan-out ke semua subscriber, bungkus tiap pemanggilan dengan try/catch.
+public sealed class InMemoryMessagePublisher(ILogger<InMemoryMessagePublisher> logger)
+    : IMessagePublisher, IMessageSubscriber
 {
     private readonly ConcurrentDictionary<Guid, Func<MessageEnvelope, CancellationToken, Task>> _subscribers = new();
 

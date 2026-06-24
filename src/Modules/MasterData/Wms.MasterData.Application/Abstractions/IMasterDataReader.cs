@@ -1,3 +1,4 @@
+using Wms.BuildingBlocks.Application.Pagination;
 using Wms.MasterData.Application.ReadModels;
 using Wms.MasterData.Domain;
 
@@ -30,4 +31,18 @@ public interface IMasterDataReader
     // TER-TARGET nama-filter (BUKAN blanket IgnoreQueryFilters yang mematikan semua filter). TAK di-cache
     // (path jarang/manajemen), beda dari GetProductAsync yang di-cache untuk hot-path read-heavy.
     Task<ProductReadModel?> GetProductIncludingInactiveAsync(string sku, CancellationToken cancellationToken = default);
+
+    // What: paginated list-API manajemen (CQRS read-side; ADR-0004/0011) — dipakai REST list endpoint (UI).
+    // Why: list manajemen butuh melihat baris AKTIF maupun INACTIVE (filter isActive), jadi impl me-relaks
+    // global soft-delete filter (flag IncludeInactive, targeted-bypass ADR-0014) lalu memfilter per isActive
+    // bila diberikan. PagedResult<T> mencegah unbounded result set (Nygard, Release It!). TAK di-cache —
+    // paged list dinamis (filter+page), korektnес > latency; beda dari hot-path by-id yang di-cache.
+    Task<PagedResult<ProductListItem>> ListProductsAsync(
+        int page, int pageSize, bool? isActive, string? search, CancellationToken ct = default);
+
+    Task<PagedResult<WarehouseListItem>> ListWarehousesAsync(
+        int page, int pageSize, bool? isActive, CancellationToken ct = default);
+
+    Task<PagedResult<LocationListItem>> ListLocationsAsync(
+        int page, int pageSize, Guid? warehouseId, LocationType? type, bool? isActive, CancellationToken ct = default);
 }

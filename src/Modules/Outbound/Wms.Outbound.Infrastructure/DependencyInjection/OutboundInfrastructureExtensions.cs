@@ -35,6 +35,11 @@ public static class OutboundInfrastructureExtensions
         services.AddScoped<IWaveRepository, WaveRepository>();
         services.AddScoped<IPickingTaskRepository, PickingTaskRepository>();
 
+        // read-port (CQRS read-side, ADR-0004): list/detail untuk WebUI tanpa lewat aggregate/repo
+        services.AddScoped<IOutboundOrderReader, OutboundOrderReader>();
+        services.AddScoped<IWaveReader, WaveReader>();
+        services.AddScoped<IPickingTaskReader, PickingTaskReader>();
+
         // consumer integration-event (scoped per pesan; bukan MediatR handler) — Phase 03c: StockAllocated.
         services.AddScoped<StockAllocatedConsumer>();
 

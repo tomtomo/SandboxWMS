@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.BuildingBlocks.Infrastructure.Resilience;
@@ -12,9 +13,9 @@ using Wms.Outbound.Application.Features.ConsumeStockAllocated;
 using Wms.Outbound.Infrastructure.DependencyInjection;
 using Wms.Outbound.Infrastructure.MasterData;
 using Wms.Outbound.Infrastructure.Messaging;
+using Wms.BuildingBlocks.Application.Messaging;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
-using Wms.Platform.Local.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +30,15 @@ var outboundConnection = builder.Configuration.GetConnectionString("outbounddb")
 
 builder.Services.AddOutboundInfrastructure(outboundConnection);
 builder.Services.AddOutboundApplication();
-builder.Services.AddLocalMessaging();
+
+// messaging transport (ADR-0029 amendment): RabbitMQ broker bila ConnectionStrings:rabbitmq tersedia (Aspire)
+// → cross-process delivery NYATA (emit 3 event via Outbox + consume StockAllocated); else in-proc fallback.
+var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq");
+if (!string.IsNullOrWhiteSpace(rabbitConn))
+    builder.Services.AddRabbitMqMessaging(rabbitConn, "outbound");
+else
+    builder.Services.AddLocalMessaging();
+
 builder.Services.AddOutboxDispatcher();
 builder.Services.AddConsumerDeadLettering();
 
@@ -39,6 +48,11 @@ builder.Services.AddConsumerDeadLettering();
 // PickingTask; request REST membawa identitas operator. Satu host, dua origin — aman.
 builder.Services.AddHttpContextCurrentUser();
 builder.Services.AddLocalAuditing();
+
+// JSON string-enum agar read endpoint menserialisasi Status (OutboundOrderStatus/WaveStatus/
+// PickingTaskStatus) sebagai NAMA (bukan angka) + parity binding filter ?status= (copy dari Inbound host).
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // Phase 04b: validasi user JWT OFFLINE (ADR-0016 alg-pin RS256) — public key via ISecretProvider (env
 // AppHost / ephemeral Local). Token valid → HttpContext.User terisi → ICurrentUser identitas NYATA (ganti
@@ -62,15 +76,15 @@ app.UseCorrelationId();
 // authentication: validasi bearer offline → isi principal sebelum endpoint/handler (ICurrentUser nyata, 04b)
 app.UseAuthentication();
 
-// What: consumer subscribe-point (ADR-0029) — sambungkan dispatcher Outbound ke rail Local, PER event.
-// Why: di Local 3-proses ini IDLE — cross-process delivery menyusul via adapter broker (Phase 05/06).
-// Choreography E2E dibuktikan via integration test 1-proses. Consumer di-subscribe dengan DLQ source =
-// HandlerType-nya → poison ter-atribusi ke consumer yang benar (forensik granular).
+// What: consumer subscribe-point (ADR-0029 amendment) — sambungkan dispatcher Outbound ke rail, PER event.
+// Why: kini AKTIF lintas-proses — IMessageSubscriber = adapter RabbitMQ (queue "outbound" bind "#") saat broker
+// ada, atau in-proc saat fallback test. Consumer di-subscribe dengan DLQ source = HandlerType-nya → poison
+// ter-atribusi ke consumer yang benar (forensik granular).
 // How: dispatcher.HandleStockAllocatedAsync dibungkus ConsumerDeadLetterPipeline (retry → DLQ, Phase 02b).
-var publisher = app.Services.GetRequiredService<InMemoryMessagePublisher>();
+var subscriber = app.Services.GetRequiredService<IMessageSubscriber>();
 var dispatcher = app.Services.GetRequiredService<OutboundIntegrationEventDispatcher>();
 var deadLettering = app.Services.GetRequiredService<ConsumerDeadLetterPipeline>();
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     StockAllocatedConsumer.HandlerType, dispatcher.HandleStockAllocatedAsync));
 
 app.MapDefaultEndpoints();

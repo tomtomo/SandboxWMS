@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.BuildingBlocks.Infrastructure.Resilience;
@@ -13,9 +14,9 @@ using Wms.Inventory.Application.Features.ConsumeShipmentDispatched;
 using Wms.Inventory.Application.Features.ConsumeWaveReleased;
 using Wms.Inventory.Infrastructure.DependencyInjection;
 using Wms.Inventory.Infrastructure.Messaging;
+using Wms.BuildingBlocks.Application.Messaging;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
-using Wms.Platform.Local.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +31,20 @@ var inventoryConnection = builder.Configuration.GetConnectionString("inventorydb
 
 builder.Services.AddInventoryInfrastructure(inventoryConnection);
 builder.Services.AddInventoryApplication();
-builder.Services.AddLocalMessaging();
+
+// JSON string-enum agar StockStatus/PutawayTaskStatus diserialisasi sebagai NAMA (bukan angka) di
+// response read-API DAN query-filter ?status= ter-bind dari nama enum (ListStocks/ListPutawayTasks).
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+// messaging transport (ADR-0029 amendment): RabbitMQ broker bila ConnectionStrings:rabbitmq tersedia (Aspire)
+// → cross-process delivery NYATA; else in-proc fallback (integration test 1-proses / run tanpa broker).
+var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq");
+if (!string.IsNullOrWhiteSpace(rabbitConn))
+    builder.Services.AddRabbitMqMessaging(rabbitConn, "inventory");
+else
+    builder.Services.AddLocalMessaging();
+
 builder.Services.AddOutboxDispatcher();
 builder.Services.AddConsumerDeadLettering();
 
@@ -63,21 +77,21 @@ app.UseCorrelationId();
 // authentication: validasi bearer offline → isi principal sebelum endpoint/handler (ICurrentUser nyata, 04b)
 app.UseAuthentication();
 
-// What: consumer subscribe-point (ADR-0029) — sambungkan dispatcher Inventory ke rail Local, PER event.
-// Why: di Local 2-proses (Opsi C) ini IDLE — cross-process delivery menyusul via adapter broker (Phase
-// 05/06). Choreography E2E dibuktikan via integration test 1-proses. Tiap consumer di-subscribe terpisah
+// What: consumer subscribe-point (ADR-0029 amendment) — sambungkan dispatcher Inventory ke rail, PER event.
+// Why: kini AKTIF lintas-proses — IMessageSubscriber = adapter RabbitMQ (queue "inventory" bind "#" di
+// exchange "wms.events") saat broker ada, atau in-proc saat fallback test. Tiap consumer di-subscribe terpisah
 // dengan DLQ source = HandlerType-nya → poison ter-atribusi ke consumer yang benar (forensik granular).
 // How: tiap dispatcher.HandleXxxAsync dibungkus ConsumerDeadLetterPipeline (retry → DLQ, Phase 02b).
-var publisher = app.Services.GetRequiredService<InMemoryMessagePublisher>();
+var subscriber = app.Services.GetRequiredService<IMessageSubscriber>();
 var dispatcher = app.Services.GetRequiredService<InventoryIntegrationEventDispatcher>();
 var deadLettering = app.Services.GetRequiredService<ConsumerDeadLetterPipeline>();
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     GoodsReceiptConfirmedConsumer.HandlerType, dispatcher.HandleGoodsReceiptConfirmedAsync));
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     WaveReleasedConsumer.HandlerType, dispatcher.HandleWaveReleasedAsync));
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     PickingCompletedConsumer.HandlerType, dispatcher.HandlePickingCompletedAsync));
-publisher.Subscribe(deadLettering.Wrap(
+subscriber.Subscribe(deadLettering.Wrap(
     ShipmentDispatchedConsumer.HandlerType, dispatcher.HandleShipmentDispatchedAsync));
 
 app.MapDefaultEndpoints();

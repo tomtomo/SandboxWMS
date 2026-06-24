@@ -42,6 +42,19 @@ public sealed class ProductEndpoints : IEndpoint
             return result.IsSuccess ? Results.NoContent() : result.ToProblemDetails();
         });
 
+        // TODO-AUTH: MasterData.ViewProduct
+        group.MapGet("/", async (
+            bool? isActive,
+            string? search,
+            int? page,
+            int? pageSize,
+            IMasterDataReader reader,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await reader.ListProductsAsync(page ?? 1, pageSize ?? 20, isActive, search, cancellationToken);
+            return Results.Ok(result);
+        });
+
         group.MapGet("/{sku}", async (string sku, IMasterDataReader reader, CancellationToken cancellationToken) =>
         {
             var product = await reader.GetProductAsync(sku, cancellationToken);

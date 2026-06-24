@@ -12,6 +12,12 @@
          Pure-managed (OWASP Password Storage) — bukan cloud SDK (FF#1 aman). LocalSecretProvider
          pakai BCL RSA (nol package). -->
     <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
+    <!-- RabbitMQ.Client 6.x (ADR-0029 amendment): adapter broker Local (publisher + consumer) untuk
+         cross-process delivery. IConnection dibangun dari ConnectionStrings:rabbitmq (inject Aspire).
+         Bukan cloud SDK (FF#1 aman); Platform = exempt FF#1 lagipula. -->
+    <PackageReference Include="RabbitMQ.Client" />
+    <!-- IHostedService (RabbitMqConsumerHostedService) — abstraksi hosting (net8 lockstep 8.0.1). -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
   </ItemGroup>
 
   <PropertyGroup>
