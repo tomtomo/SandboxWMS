@@ -1,12 +1,32 @@
-@* What: Blazor Router (root component) — client-side routing dalam circuit (Blazor Server) *@
-<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <MudText Typo="Typo.h5">404 — halaman tak ditemukan.</MudText>
-        </LayoutView>
-    </NotFound>
-</Router>
+@* What: root document Blazor Web App — host server-rendered shell yang me-mount Routes interactive.
+   Render mode prerender:false (selaras _Host lama "Server" bukan "ServerPrerendered" → circuit-scoped bersih). *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>TomSandboxWMS</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="app.css" rel="stylesheet" />
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+<body>
+    <Routes @rendermode="PageRenderMode" />
+
+    <div id="blazor-error-ui">
+        Terjadi error tak tertangani.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <script src="_framework/blazor.web.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+</body>
+</html>
+
+@code {
+    // prerender:false → komponen hidup hanya di circuit (TokenStore circuit-scoped bersih, hydrate sekali).
+    private static readonly IComponentRenderMode PageRenderMode = new InteractiveServerRenderMode(prerender: false);
+}

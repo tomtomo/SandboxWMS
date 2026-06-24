@@ -1,0 +1,109 @@
+@page "/master-data/locations"
+@inject WmsApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Locations</PageTitle>
+
+<PageHeader Title="Locations">
+    <Actions>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenCreateDialog">Tambah Location</MudButton>
+    </Actions>
+</PageHeader>
+
+@if (_gapMessage is not null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">@_gapMessage</MudAlert>
+}
+
+<MudPaper Class="pa-3 mb-4" Elevation="1">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudSelect T="LocationType?" @bind-Value="_filterType" Label="Type" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;">
+            @foreach (var t in Enum.GetValues<LocationType>())
+            {
+                <MudSelectItem T="LocationType?" Value="@((LocationType?)t)">@t</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSwitch @bind-Value="_showInactive" Label="Tampilkan inactive" Color="Color.Primary" T="bool" />
+        <MudButton OnClick="ApplyFilter" Variant="Variant.Outlined">Apply</MudButton>
+        <MudButton OnClick="ResetFilter" Variant="Variant.Text">Reset</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudTable T="LocationDto" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table">
+    <HeaderContent>
+        <MudTh>Code</MudTh><MudTh>Type</MudTh><MudTh>Warehouse Id</MudTh><MudTh>Active</MudTh><MudTh Style="width:80px;">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Code</MudTd>
+        <MudTd><MudChip T="string" Size="Size.Small" Color="@TypeColor(context.Type)">@context.Type</MudChip></MudTd>
+        <MudTd>@context.WarehouseId</MudTd>
+        <MudTd>@(context.IsActive ? "✓" : "✗")</MudTd>
+        <MudTd>
+            @if (context.IsActive)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" aria-label="Deactivate location" OnClick="@(() => ConfirmDeactivate(context))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Belum ada location untuk filter ini.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private MudTable<LocationDto>? _table;
+    private LocationType? _filterType;
+    private bool _showInactive;
+    private string? _gapMessage;
+
+    private async Task<TableData<LocationDto>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.MasterData.ListLocationsAsync(
+            state.Page + 1, state.PageSize, warehouseId: null, type: _filterType, isActive: _showInactive ? null : true, ct);
+        if (!result.Success)
+        {
+            _gapMessage = result.ErrorMessage;
+            return new TableData<LocationDto> { Items = Array.Empty<LocationDto>(), TotalItems = 0 };
+        }
+        _gapMessage = null;
+        return new TableData<LocationDto> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+
+    private void ApplyFilter() => _table?.ReloadServerData();
+    private void ResetFilter() { _filterType = null; _showInactive = false; _table?.ReloadServerData(); }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<LocationFormDialog>("Tambah Location");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) _table?.ReloadServerData();
+    }
+
+    private async Task ConfirmDeactivate(LocationDto loc)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ConfirmDialog.Title)] = $"Deactivate {loc.Code}?",
+            [nameof(ConfirmDialog.Message)] = "Location akan di-soft-delete.",
+            [nameof(ConfirmDialog.ConfirmText)] = "Deactivate",
+            [nameof(ConfirmDialog.ConfirmColor)] = Color.Error,
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Konfirmasi", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            var res = await Api.MasterData.DeactivateLocationAsync(loc.LocationId);
+            Snackbar.Add(res.Success ? "Location di-deactivate." : $"Gagal: {res.ErrorMessage}", res.Success ? Severity.Success : Severity.Error);
+            if (res.Success) _table?.ReloadServerData();
+        }
+    }
+
+    private static Color TypeColor(LocationType type) => type switch
+    {
+        LocationType.ReceivingArea => Color.Info,
+        LocationType.Rack => Color.Success,
+        LocationType.QuarantineArea => Color.Error,
+        LocationType.StagingArea => Color.Warning,
+        _ => Color.Default,
+    };
+}

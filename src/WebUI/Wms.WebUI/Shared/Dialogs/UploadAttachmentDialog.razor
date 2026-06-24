@@ -1,0 +1,100 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:480px;">
+            <MudText Typo="Typo.body2" Class="mb-3">Format: PDF, JPG, PNG, WEBP. Maks 50 MB.</MudText>
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected" Accept=".pdf,.jpg,.jpeg,.png,.webp" MaximumFileCount="1">
+                <CustomContent Context="fileUpload">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachFile"
+                               Disabled="_busy" OnClick="@fileUpload.OpenFilePickerAsync">Pilih File</MudButton>
+                </CustomContent>
+            </MudFileUpload>
+            @if (_file is not null)
+            {
+                <MudPaper Class="pa-3 mt-3 d-flex align-center" Elevation="0" Outlined="true">
+                    <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Class="mr-2" />
+                    <div class="flex-grow-1">
+                        <MudText Typo="Typo.body2"><b>@_file.Name</b></MudText>
+                        <MudText Typo="Typo.caption">@FormatSize(_file.Size) — @_file.ContentType</MudText>
+                    </div>
+                </MudPaper>
+            }
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true">@_error</MudAlert>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleUpload" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_busy || _file is null)">@(_busy ? "Uploading..." : "Upload")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid GoodsReceiptId { get; set; }
+
+    private const long MaxSizeBytes = 50L * 1024 * 1024;
+    private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
+
+    private IBrowserFile? _file;
+    private string? _error;
+    private bool _busy;
+
+    private void OnFileSelected(IBrowserFile? file)
+    {
+        _error = null; _file = null;
+        if (file is null) return;
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+        if (!AllowedExtensions.Contains(ext)) { _error = $"Tipe '{ext}' tidak didukung."; return; }
+        if (file.Size <= 0) { _error = "File kosong."; return; }
+        if (file.Size > MaxSizeBytes) { _error = $"File terlalu besar ({FormatSize(file.Size)}). Maks 50 MB."; return; }
+        _file = file;
+    }
+
+    private async Task HandleUpload()
+    {
+        if (_file is null) return;
+        _busy = true; _error = null;
+        try
+        {
+            byte[] bytes;
+            await using (var fs = _file.OpenReadStream(MaxSizeBytes))
+            using (var ms = new MemoryStream())
+            {
+                await fs.CopyToAsync(ms);
+                bytes = ms.ToArray();
+            }
+            var result = await Api.Inbound.UploadAttachmentAsync(GoodsReceiptId, bytes, _file.Name, ResolveContentType(_file));
+            if (result.Success) { Snackbar.Add($"'{_file.Name}' ter-upload.", Severity.Success); Dialog.Close(DialogResult.Ok(true)); }
+            else _error = result.ErrorMessage;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private static string ResolveContentType(IBrowserFile file)
+    {
+        if (!string.IsNullOrWhiteSpace(file.ContentType) && file.ContentType != "application/octet-stream") return file.ContentType;
+        return Path.GetExtension(file.Name).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream",
+        };
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        >= 1024 * 1024 => $"{bytes / 1024.0 / 1024.0:0.0} MB",
+        >= 1024 => $"{bytes / 1024.0:0.0} KB",
+        _ => $"{bytes} B",
+    };
+
+    private void Cancel() => Dialog.Cancel();
+}

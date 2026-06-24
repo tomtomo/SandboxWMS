@@ -1,0 +1,51 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+@* Complete picking: input staging location (string code). NO ActualQty (backend tak punya). *@
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:480px;">
+        <MudList T="string" Dense="true" Class="mb-3">
+            <MudListItem T="string"><b>SKU:</b> @Existing.Sku</MudListItem>
+            <MudListItem T="string"><b>Qty:</b> @Existing.Qty</MudListItem>
+            <MudListItem T="string"><b>Batch:</b> @(Existing.Batch ?? "-")</MudListItem>
+            <MudListItem T="string"><b>Wave:</b> @Existing.WaveId</MudListItem>
+        </MudList>
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_form.StagingLocationId" Label="Staging Location (code)" Required="true"
+                          Variant="Variant.Outlined" Class="mb-3" HelperText="Kode staging area (mis. STG-01)." />
+            <ValidationSummary />
+        </EditForm>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : "Complete Picking")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public PickingTaskDto Existing { get; set; } = default!;
+    private CompletePickingForm _form = new();
+    private EditContext _editContext = default!;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_form);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!_editContext.Validate()) return;
+        _busy = true;
+        var result = await Api.Outbound.CompletePickingAsync(Existing.PickingTaskId, _form);
+        _busy = false;
+        if (result.Success) { Snackbar.Add("Picking completed. Stock → Picked.", Severity.Success); Dialog.Close(DialogResult.Ok(true)); }
+        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

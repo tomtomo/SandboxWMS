@@ -1,0 +1,87 @@
+@page "/inventory/putaway-tasks"
+@inject WmsApiClient Api
+@inject IDialogService DialogService
+@inject TokenStore TokenStore
+
+<PageTitle>Putaway Tasks</PageTitle>
+<PageHeader Title="Putaway Tasks" />
+
+@if (_gapMessage is not null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">@_gapMessage</MudAlert>
+}
+
+<MudPaper Class="pa-3 mb-4" Elevation="1">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudTextField @bind-Value="_assignedTo" Label="Assigned To (userId)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:220px;" Disabled="_onlyMine" />
+        <MudSelect T="PutawayTaskStatus?" @bind-Value="_status" Label="Status" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px;">
+            @foreach (var s in Enum.GetValues<PutawayTaskStatus>())
+            {
+                <MudSelectItem T="PutawayTaskStatus?" Value="@((PutawayTaskStatus?)s)">@s</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSwitch @bind-Value="_onlyMine" Label="Hanya assigned ke saya" Color="Color.Primary" T="bool" />
+        <MudButton OnClick="ApplyFilter" Variant="Variant.Outlined">Apply</MudButton>
+        <MudButton OnClick="ResetFilter" Variant="Variant.Text">Reset</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudTable T="PutawayTaskDto" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table">
+    <HeaderContent>
+        <MudTh>Stock</MudTh><MudTh>Source</MudTh><MudTh>Suggested</MudTh><MudTh>Actual</MudTh>
+        <MudTh>Assigned To</MudTh><MudTh>Status</MudTh><MudTh Style="width:100px;">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.StockId.ToString()[..8]</MudTd>
+        <MudTd>@context.SourceLocationId</MudTd>
+        <MudTd>@context.SuggestedDestinationId</MudTd>
+        <MudTd>@(context.ActualDestinationId ?? "-")</MudTd>
+        <MudTd>@(context.AssignedTo ?? "-")</MudTd>
+        <MudTd><MudChip T="string" Size="Size.Small" Color="@TaskColor(context.Status)">@context.Status</MudChip></MudTd>
+        <MudTd>
+            @if (context.Status == nameof(PutawayTaskStatus.Assigned))
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => OpenComplete(context))">Complete</MudButton>
+            }
+        </MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Tidak ada putaway task untuk filter ini.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private MudTable<PutawayTaskDto>? _table;
+    private string _assignedTo = "";
+    private PutawayTaskStatus? _status = PutawayTaskStatus.Assigned;
+    private bool _onlyMine;
+    private string? _gapMessage;
+
+    private async Task<TableData<PutawayTaskDto>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var effectiveAssignedTo = _onlyMine ? TokenStore.UserId : (string.IsNullOrWhiteSpace(_assignedTo) ? null : _assignedTo);
+        var result = await Api.Inventory.ListPutawayTasksAsync(state.Page + 1, state.PageSize, effectiveAssignedTo, _status, ct);
+        if (!result.Success)
+        {
+            _gapMessage = result.ErrorMessage;
+            return new TableData<PutawayTaskDto> { Items = Array.Empty<PutawayTaskDto>(), TotalItems = 0 };
+        }
+        _gapMessage = null;
+        return new TableData<PutawayTaskDto> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+
+    private void ApplyFilter() => _table?.ReloadServerData();
+    private void ResetFilter() { _assignedTo = ""; _status = PutawayTaskStatus.Assigned; _onlyMine = false; _table?.ReloadServerData(); }
+
+    private async Task OpenComplete(PutawayTaskDto task)
+    {
+        var parameters = new DialogParameters { [nameof(CompletePutawayDialog.Existing)] = task };
+        var dialog = await DialogService.ShowAsync<CompletePutawayDialog>("Complete Putaway", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) _table?.ReloadServerData();
+    }
+
+    private static Color TaskColor(string s) => s switch
+    {
+        "Assigned" => Color.Warning, "Completed" => Color.Success, _ => Color.Default,
+    };
+}

@@ -1,0 +1,56 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+@* Complete putaway: pindah stock dari receiving → rack. ActualDestinationId = STRING; pre-fill dari
+   SuggestedDestinationId (string valid dari backend), operator bisa override (mis. scan bin lain). *@
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:480px;">
+        <MudList T="string" Dense="true" Class="mb-3">
+            <MudListItem T="string"><b>Task:</b> @Existing.PutawayTaskId</MudListItem>
+            <MudListItem T="string"><b>Stock:</b> @Existing.StockId</MudListItem>
+            <MudListItem T="string"><b>Source (receiving):</b> @Existing.SourceLocationId</MudListItem>
+            <MudListItem T="string"><b>Suggested rack:</b> @Existing.SuggestedDestinationId</MudListItem>
+        </MudList>
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_form.ActualDestinationId" Label="Actual Destination (location id)"
+                          Required="true" Variant="Variant.Outlined" Class="mb-3"
+                          HelperText="Default = suggested rack; override bila rak penuh/diblokir." />
+            <ValidationSummary />
+        </EditForm>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : "Complete Putaway")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public PutawayTaskDto Existing { get; set; } = default!;
+
+    private CompletePutawayForm _form = new();
+    private EditContext _editContext = default!;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _form.ActualDestinationId = Existing.SuggestedDestinationId;
+        _editContext = new EditContext(_form);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!_editContext.Validate()) return;
+        if (string.IsNullOrWhiteSpace(_form.ActualDestinationId)) return;
+        _busy = true;
+        var result = await Api.Inventory.CompletePutawayAsync(Existing.PutawayTaskId, _form.ActualDestinationId!);
+        _busy = false;
+        if (result.Success) { Snackbar.Add("Putaway completed. Stock → Available.", Severity.Success); Dialog.Close(DialogResult.Ok(true)); }
+        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

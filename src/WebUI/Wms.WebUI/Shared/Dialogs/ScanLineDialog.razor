@@ -1,0 +1,79 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:480px;">
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSimpan">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_form.Sku" Label="SKU (scan atau input)" Required="true" Variant="Variant.Outlined" Class="mb-3" @ref="_skuField" />
+            <MudNumericField @bind-Value="_form.ActualQty" Label="Actual Qty" Min="1" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Batch" Label="Batch (optional)" Variant="Variant.Outlined" Class="mb-3" />
+            <MudDatePicker @bind-Date="_expiryDate" Label="Expiry (optional)" Variant="Variant.Outlined" Class="mb-3" />
+            <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Line Status</MudText>
+            <MudRadioGroup T="LineStatus" @bind-Value="_form.LineStatus">
+                <MudRadio T="LineStatus" Value="@LineStatus.Good" Color="Color.Success">Good</MudRadio>
+                <MudRadio T="LineStatus" Value="@LineStatus.WrongItem" Color="Color.Warning">WrongItem</MudRadio>
+                <MudRadio T="LineStatus" Value="@LineStatus.QcHold" Color="Color.Error">QcHold</MudRadio>
+            </MudRadioGroup>
+            <ValidationSummary />
+        </EditForm>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSimpan" Color="Color.Secondary" Variant="Variant.Outlined" Disabled="_busy">@(_busy ? "..." : "Simpan")</MudButton>
+        <MudButton OnClick="HandleSimpanLanjut" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : "Simpan & Lanjut")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid GoodsReceiptId { get; set; }
+
+    private ScanLineForm _form = new();
+    private EditContext _editContext = default!;
+    private DateTime? _expiryDate;
+    private MudTextField<string>? _skuField;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_form);
+    }
+
+    private async Task<bool> SubmitOnceAsync()
+    {
+        if (!_editContext.Validate()) return false;
+        _form.Expiry = _expiryDate.HasValue ? DateOnly.FromDateTime(_expiryDate.Value) : null;
+        _busy = true;
+        var result = await Api.Inbound.ScanAsync(GoodsReceiptId, _form);
+        _busy = false;
+        if (result.Success)
+        {
+            Snackbar.Add($"Scan {_form.Sku} ({_form.ActualQty}) OK.", Severity.Success);
+            return true;
+        }
+        Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+        return false;
+    }
+
+    private async Task HandleSimpan()
+    {
+        if (await SubmitOnceAsync()) Dialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task HandleSimpanLanjut()
+    {
+        if (await SubmitOnceAsync())
+        {
+            _form = new ScanLineForm();
+            _editContext = new EditContext(_form);
+            _expiryDate = null;
+            StateHasChanged();
+            if (_skuField is not null) await _skuField.FocusAsync();
+        }
+    }
+
+    private void Cancel() => Dialog.Close(DialogResult.Ok(false));
+}

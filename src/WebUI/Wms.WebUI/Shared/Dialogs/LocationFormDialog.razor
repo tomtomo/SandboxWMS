@@ -1,0 +1,72 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+@* Create Location (M1: create-only). Warehouse dipilih via GUID manual karena warehouse-list = gap;
+   saat list landing, ganti _warehouseIdText jadi MudSelect populated dari ListWarehouses. *@
+<MudDialog>
+    <DialogContent>
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_warehouseIdText" Label="Warehouse Id (GUID)" Required="true"
+                          Variant="Variant.Outlined" Class="mb-1"
+                          HelperText="Tempel GUID warehouse (warehouse-list belum tersedia)." />
+            @if (_warehouseIdError is not null)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Error" Class="mb-2">@_warehouseIdError</MudText>
+            }
+            <MudSelect T="LocationType?" @bind-Value="_form.Type" Label="Type" Required="true" Variant="Variant.Outlined" Class="mb-3">
+                @foreach (var t in Enum.GetValues<LocationType>())
+                {
+                    <MudSelectItem T="LocationType?" Value="@((LocationType?)t)">@t</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="_form.Code" Label="Code (e.g. RACK-A01-03)" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <ValidationSummary />
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "Menyimpan..." : "Simpan")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    private LocationForm _form = new();
+    private EditContext _editContext = default!;
+    private string _warehouseIdText = "";
+    private string? _warehouseIdError;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_form);
+    }
+
+    private async Task HandleSubmit()
+    {
+        _warehouseIdError = null;
+        if (!Guid.TryParse(_warehouseIdText, out var warehouseId))
+        {
+            _warehouseIdError = "Warehouse Id harus GUID valid.";
+            return;
+        }
+        _form.WarehouseId = warehouseId;
+        if (!_editContext.Validate()) return;
+
+        _busy = true;
+        var result = await Api.MasterData.CreateLocationAsync(_form);
+        _busy = false;
+        if (result.Success)
+        {
+            Snackbar.Add("Location dibuat.", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

@@ -1,0 +1,48 @@
+@page "/outbound/orders/{Id:guid}"
+@inject WmsApiClient Api
+
+<PageTitle>Order Detail</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_order is null)
+{
+    <MudAlert Severity="Severity.Warning">@(_gapMessage ?? "Order tidak ditemukan.")</MudAlert>
+    <MudButton Href="/outbound/orders" Variant="Variant.Outlined" Class="mt-3" StartIcon="@Icons.Material.Filled.ArrowBack">Kembali ke List</MudButton>
+}
+else
+{
+    <PageHeader Title="@($"Order {_order.OrderId.ToString()[..8]}")" />
+    <MudPaper Class="pa-3 mb-4" Elevation="1">
+        <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+            <MudChip T="string" Size="Size.Medium" Color="@OrderColor(_order.Status)">@_order.Status</MudChip>
+            <MudText Typo="Typo.body2"><b>Customer:</b> @_order.CustomerId</MudText>
+            <MudText Typo="Typo.body2"><b>Ship To:</b> @_order.ShipTo</MudText>
+        </MudStack>
+    </MudPaper>
+    <MudTable Items="_order.Lines" Dense="true" Hover="true" Striped="true">
+        <HeaderContent><MudTh>#</MudTh><MudTh>SKU</MudTh><MudTh>Qty</MudTh><MudTh>UOM</MudTh></HeaderContent>
+        <RowTemplate><MudTd>@context.Id</MudTd><MudTd>@context.Sku</MudTd><MudTd>@context.Qty</MudTd><MudTd>@context.Uom</MudTd></RowTemplate>
+    </MudTable>
+    <MudButton Href="/outbound/orders" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mt-4">Kembali ke List</MudButton>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private OrderDetailDto? _order;
+    private string? _gapMessage;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.Outbound.GetOrderAsync(Id);
+        if (result.Success) { _order = result.Value; _gapMessage = null; }
+        else { _order = null; _gapMessage = result.ErrorMessage; }
+        _loading = false;
+    }
+
+    private static Color OrderColor(string s) => s switch
+    { "New" => Color.Info, "InProgress" => Color.Warning, "Closed" => Color.Success, _ => Color.Default };
+}

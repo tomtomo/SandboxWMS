@@ -1,0 +1,101 @@
+@page "/master-data/products"
+@inject WmsApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Products</PageTitle>
+
+<PageHeader Title="Products">
+    <Actions>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenCreateDialog">Tambah Product</MudButton>
+    </Actions>
+</PageHeader>
+
+@if (_gapMessage is not null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">@_gapMessage</MudAlert>
+}
+
+<MudPaper Class="pa-3 mb-4" Elevation="1">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudTextField @bind-Value="_search" Label="Cari (Sku/Name)" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:280px;" Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="ApplyFilter" />
+        <MudSwitch @bind-Value="_showInactive" Label="Tampilkan inactive" Color="Color.Primary" T="bool" />
+        <MudButton OnClick="ApplyFilter" Variant="Variant.Outlined">Apply</MudButton>
+        <MudButton OnClick="ResetFilter" Variant="Variant.Text">Reset</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudTable T="ProductDto" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table">
+    <HeaderContent>
+        <MudTh>SKU</MudTh><MudTh>Name</MudTh><MudTh>UOM</MudTh><MudTh>Batch</MudTh><MudTh>Expiry</MudTh>
+        <MudTh>QC</MudTh><MudTh>Shelf Days</MudTh><MudTh>Active</MudTh><MudTh Style="width:80px;">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Sku</MudTd>
+        <MudTd>@context.Name</MudTd>
+        <MudTd>@context.Uom</MudTd>
+        <MudTd>@(context.BatchTrackingRequired ? "Yes" : "No")</MudTd>
+        <MudTd>@(context.ExpiryTrackingRequired ? "Yes" : "No")</MudTd>
+        <MudTd>@(context.QcRequiredOnReceipt ? "Yes" : "No")</MudTd>
+        <MudTd>@(context.ShelfLifeDays?.ToString() ?? "-")</MudTd>
+        <MudTd>@(context.IsActive ? "✓" : "✗")</MudTd>
+        <MudTd>
+            @if (context.IsActive)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" aria-label="Deactivate product" OnClick="@(() => ConfirmDeactivate(context))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Belum ada produk untuk filter ini.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private MudTable<ProductDto>? _table;
+    private string _search = "";
+    private bool _showInactive;
+    private string? _gapMessage;
+
+    private async Task<TableData<ProductDto>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.MasterData.ListProductsAsync(
+            state.Page + 1, state.PageSize, _showInactive ? null : true,
+            string.IsNullOrWhiteSpace(_search) ? null : _search, ct);
+        if (!result.Success)
+        {
+            _gapMessage = result.ErrorMessage;
+            return new TableData<ProductDto> { Items = Array.Empty<ProductDto>(), TotalItems = 0 };
+        }
+        _gapMessage = null;
+        return new TableData<ProductDto> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+
+    private void ApplyFilter() => _table?.ReloadServerData();
+    private void ResetFilter() { _search = ""; _showInactive = false; _table?.ReloadServerData(); }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<ProductFormDialog>("Tambah Product");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) _table?.ReloadServerData();
+    }
+
+    private async Task ConfirmDeactivate(ProductDto product)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ConfirmDialog.Title)] = $"Deactivate {product.Sku}?",
+            [nameof(ConfirmDialog.Message)] = "Product akan di-soft-delete (isActive=false).",
+            [nameof(ConfirmDialog.ConfirmText)] = "Deactivate",
+            [nameof(ConfirmDialog.ConfirmColor)] = Color.Error,
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Konfirmasi", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            var res = await Api.MasterData.DeactivateProductAsync(product.Sku);
+            Snackbar.Add(res.Success ? "Product di-deactivate." : $"Gagal: {res.ErrorMessage}", res.Success ? Severity.Success : Severity.Error);
+            if (res.Success) _table?.ReloadServerData();
+        }
+    }
+}

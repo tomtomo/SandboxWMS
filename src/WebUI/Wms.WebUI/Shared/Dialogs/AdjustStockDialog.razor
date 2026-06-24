@@ -1,0 +1,56 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+@* Adjust stock: absolute qty override (BUKAN delta) — cycle count / damage write-off. Reason di-capture
+   sbg audit hint tapi backend belum punya field → tidak terkirim (gap P2). Endpoint adjust = gap (G3). *@
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:480px;">
+        <MudAlert Severity="Severity.Warning" Class="mb-3">Adjust = set qty absolut (bukan tambah/kurang). Reason di-capture tapi belum dipersist backend (gap).</MudAlert>
+        <MudList T="string" Dense="true" Class="mb-3">
+            <MudListItem T="string"><b>SKU:</b> @Existing.Sku</MudListItem>
+            <MudListItem T="string"><b>Status:</b> @Existing.Status</MudListItem>
+            <MudListItem T="string"><b>Location:</b> @Existing.LocationId</MudListItem>
+            <MudListItem T="string"><b>Batch:</b> @(Existing.Batch ?? "-")</MudListItem>
+            <MudListItem T="string"><b>Current Qty:</b> @Existing.Quantity</MudListItem>
+        </MudList>
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <MudNumericField @bind-Value="_form.NewQty" Label="New Qty (absolute set)" Min="0" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Reason" Label="Reason (audit hint, optional)" Lines="3" Variant="Variant.Outlined" Class="mb-3" />
+            <ValidationSummary />
+        </EditForm>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Warning" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : $"Override → {_form.NewQty}")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public StockDto Existing { get; set; } = default!;
+
+    private AdjustStockForm _form = new();
+    private EditContext _editContext = default!;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _form.NewQty = Existing.Quantity;
+        _editContext = new EditContext(_form);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!_editContext.Validate()) return;
+        _busy = true;
+        var result = await Api.Inventory.AdjustStockAsync(Existing.StockId, _form.NewQty); // Reason NOT sent (gap)
+        _busy = false;
+        if (result.Success) { Snackbar.Add($"Stock {Existing.Sku} adjusted ke qty {_form.NewQty}.", Severity.Success); Dialog.Close(DialogResult.Ok(true)); }
+        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

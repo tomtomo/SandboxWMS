@@ -1,0 +1,34 @@
+@page "/reporting/operator-activity"
+@inject WmsApiClient Api
+
+<PageTitle>Operator Activity</PageTitle>
+<PageHeader Title="Operator Activity" />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudTable T="OperatorActivityRow" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true">
+    <HeaderContent><MudTh>Operator</MudTh><MudTh>Day</MudTh><MudTh>Putaway</MudTh><MudTh>Pick</MudTh></HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.OperatorId</MudTd>
+        <MudTd>@context.Day.ToString("yyyy-MM-dd")</MudTd>
+        <MudTd>@context.PutawayCount</MudTd>
+        <MudTd>@context.PickCount</MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Tidak ada data.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private string? _error;
+
+    private async Task<TableData<OperatorActivityRow>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.Reporting.ListOperatorActivityAsync(state.Page + 1, state.PageSize, ct);
+        if (!result.Success) { _error = result.ErrorMessage; return new TableData<OperatorActivityRow> { Items = Array.Empty<OperatorActivityRow>(), TotalItems = 0 }; }
+        _error = null;
+        return new TableData<OperatorActivityRow> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+}

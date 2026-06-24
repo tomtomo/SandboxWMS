@@ -1,0 +1,89 @@
+@page "/master-data/warehouses"
+@inject WmsApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Warehouses</PageTitle>
+
+<PageHeader Title="Warehouses">
+    <Actions>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenCreateDialog">Tambah Warehouse</MudButton>
+    </Actions>
+</PageHeader>
+
+@if (_gapMessage is not null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">@_gapMessage</MudAlert>
+}
+
+<MudPaper Class="pa-3 mb-4" Elevation="1">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudSwitch @bind-Value="_showInactive" Label="Tampilkan inactive" Color="Color.Primary" T="bool" />
+        <MudButton OnClick="ApplyFilter" Variant="Variant.Outlined">Apply</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudTable T="WarehouseDto" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table">
+    <HeaderContent>
+        <MudTh>Name</MudTh><MudTh>Address</MudTh><MudTh>Active</MudTh><MudTh Style="width:80px;">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Name</MudTd>
+        <MudTd>@context.Address</MudTd>
+        <MudTd>@(context.IsActive ? "✓" : "✗")</MudTd>
+        <MudTd>
+            @if (context.IsActive)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" aria-label="Deactivate warehouse" OnClick="@(() => ConfirmDeactivate(context))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Belum ada warehouse.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private MudTable<WarehouseDto>? _table;
+    private bool _showInactive;
+    private string? _gapMessage;
+
+    private async Task<TableData<WarehouseDto>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.MasterData.ListWarehousesAsync(state.Page + 1, state.PageSize, _showInactive ? null : true, ct);
+        if (!result.Success)
+        {
+            _gapMessage = result.ErrorMessage;
+            return new TableData<WarehouseDto> { Items = Array.Empty<WarehouseDto>(), TotalItems = 0 };
+        }
+        _gapMessage = null;
+        return new TableData<WarehouseDto> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+
+    private void ApplyFilter() => _table?.ReloadServerData();
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<WarehouseFormDialog>("Tambah Warehouse");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) _table?.ReloadServerData();
+    }
+
+    private async Task ConfirmDeactivate(WarehouseDto wh)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ConfirmDialog.Title)] = $"Deactivate {wh.Name}?",
+            [nameof(ConfirmDialog.Message)] = "Warehouse akan di-soft-delete.",
+            [nameof(ConfirmDialog.ConfirmText)] = "Deactivate",
+            [nameof(ConfirmDialog.ConfirmColor)] = Color.Error,
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Konfirmasi", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            var res = await Api.MasterData.DeactivateWarehouseAsync(wh.WarehouseId);
+            Snackbar.Add(res.Success ? "Warehouse di-deactivate." : $"Gagal: {res.ErrorMessage}", res.Success ? Severity.Success : Severity.Error);
+            if (res.Success) _table?.ReloadServerData();
+        }
+    }
+}

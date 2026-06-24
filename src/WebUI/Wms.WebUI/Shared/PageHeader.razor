@@ -1,0 +1,14 @@
+@* Header standar tiap page: title kiri + actions slot kanan. *@
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">@Title</MudText>
+    <MudSpacer />
+    @if (Actions is not null)
+    {
+        @Actions
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

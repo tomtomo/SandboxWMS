@@ -1,0 +1,68 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+@* Create order: customerId + shipTo + lines (sku free-text + qty). Order TIDAK warehouse-scoped; UOM
+   di-snapshot server-side. Nav ke detail (gap) setelah sukses. *@
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:560px;">
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_form.CustomerId" Label="Customer ID" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.ShipTo" Label="Ship To" Lines="2" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+            <MudText Typo="Typo.subtitle1" Class="mt-3 mb-2">Order Lines</MudText>
+            <MudTable Items="_form.Lines" Dense="true" Hover="false">
+                <HeaderContent><MudTh>SKU</MudTh><MudTh Style="width:120px;">Qty</MudTh><MudTh Style="width:60px;"></MudTh></HeaderContent>
+                <RowTemplate Context="row">
+                    <MudTd><MudTextField @bind-Value="row.Sku" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="SKU" /></MudTd>
+                    <MudTd><MudNumericField @bind-Value="row.Qty" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                    <MudTd><MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Color="Color.Error" OnClick="@(() => _form.Lines.Remove(row))" /></MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudButton OnClick="AddLine" StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Class="mt-2">Tambah Line</MudButton>
+            @if (_form.Lines.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mt-3">Minimal 1 line wajib.</MudAlert>
+            }
+            <ValidationSummary />
+        </EditForm>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_busy || _form.Lines.Count == 0)">@(_busy ? "..." : "Simpan & Buka Detail")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    private CreateOrderForm _form = new() { Lines = { new OrderLineInput() } };
+    private EditContext _editContext = default!;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_form);
+    }
+
+    private void AddLine() => _form.Lines.Add(new OrderLineInput());
+
+    private async Task HandleSubmit()
+    {
+        if (_form.Lines.Count == 0) { Snackbar.Add("Minimal 1 line wajib.", Severity.Warning); return; }
+        if (!_editContext.Validate()) return;
+        _busy = true;
+        var result = await Api.Outbound.CreateOrderAsync(_form);
+        _busy = false;
+        if (result.Success)
+        {
+            Snackbar.Add($"Order dibuat: {result.Value}", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+            Nav.NavigateTo($"/outbound/orders/{result.Value}");
+        }
+        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

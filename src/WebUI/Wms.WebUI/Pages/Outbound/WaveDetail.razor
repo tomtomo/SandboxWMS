@@ -1,0 +1,95 @@
+@page "/outbound/waves/{Id:guid}"
+@inject WmsApiClient Api
+@inject IDialogService DialogService
+
+<PageTitle>Wave Detail</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_wave is null)
+{
+    <PageHeader Title="@($"Wave {Id.ToString()[..8]}")">
+        <Actions>
+            <MudButton StartIcon="@Icons.Material.Filled.LocalShipping" Color="Color.Error" Variant="Variant.Filled" OnClick="OpenDispatch">Dispatch</MudButton>
+        </Actions>
+    </PageHeader>
+    <MudAlert Severity="Severity.Warning">@(_gapMessage ?? "Wave tidak ditemukan.")</MudAlert>
+    <MudText Typo="Typo.caption" Class="mt-2">Detail belum tersedia — tombol Dispatch tetap aktif (backend menolak bila wave belum Ready).</MudText>
+    <MudButton Href="/outbound/waves" Variant="Variant.Outlined" Class="mt-3" StartIcon="@Icons.Material.Filled.ArrowBack">Kembali ke List</MudButton>
+}
+else
+{
+    <PageHeader Title="@($"Wave {_wave.WaveId.ToString()[..8]}")">
+        <Actions>
+            @if (_status == WaveStatus.Ready)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.LocalShipping" Color="Color.Error" Variant="Variant.Filled" OnClick="OpenDispatch">Dispatch Wave</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+    <MudPaper Class="pa-3 mb-4" Elevation="1">
+        <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+            <MudChip T="string" Size="Size.Medium" Color="@WaveColor(_wave.Status)">@_wave.Status</MudChip>
+            <MudText Typo="Typo.body2"><b>Orders:</b> @_wave.OrderIds.Count</MudText>
+            <MudText Typo="Typo.body2"><b>Lines:</b> @_wave.Lines.Count</MudText>
+        </MudStack>
+    </MudPaper>
+    <MudTabs Elevation="1" Rounded="true">
+        <MudTabPanel Text="@($"Orders ({_wave.OrderIds.Count})")">
+            <MudList T="string" Dense="true">
+                @foreach (var oid in _wave.OrderIds)
+                {
+                    <MudListItem T="string" Href="@($"/outbound/orders/{oid}")">@oid</MudListItem>
+                }
+            </MudList>
+        </MudTabPanel>
+        <MudTabPanel Text="@($"Lines ({_wave.Lines.Count})")">
+            <MudTable Items="_wave.Lines" Dense="true" Hover="true" Striped="true">
+                <HeaderContent><MudTh>#</MudTh><MudTh>Order</MudTh><MudTh>SKU</MudTh><MudTh>Qty</MudTh></HeaderContent>
+                <RowTemplate><MudTd>@context.Id</MudTd><MudTd>@context.OrderId.ToString()[..8]</MudTd><MudTd>@context.Sku</MudTd><MudTd>@context.Qty</MudTd></RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+    </MudTabs>
+    <MudButton Href="/outbound/waves" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mt-4">Kembali ke List</MudButton>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private WaveDetailDto? _wave;
+    private WaveStatus _status;
+    private string? _gapMessage;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        var result = await Api.Outbound.GetWaveAsync(Id);
+        if (result.Success)
+        {
+            _wave = result.Value;
+            _status = Enum.TryParse<WaveStatus>(_wave!.Status, out var s) ? s : WaveStatus.Active;
+            _gapMessage = null;
+        }
+        else { _wave = null; _gapMessage = result.ErrorMessage; }
+        _loading = false;
+    }
+
+    private async Task OpenDispatch()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(DispatchWaveDialog.WaveId)] = Id,
+            [nameof(DispatchWaveDialog.WaveStatus)] = _wave?.Status ?? "",
+        };
+        var dialog = await DialogService.ShowAsync<DispatchWaveDialog>("Dispatch Wave", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true }) await Load();
+    }
+
+    private static Color WaveColor(string s) => s switch
+    { "Active" => Color.Info, "Ready" => Color.Warning, "Dispatched" => Color.Success, _ => Color.Default };
+}

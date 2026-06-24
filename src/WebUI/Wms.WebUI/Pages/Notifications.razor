@@ -1,10 +1,10 @@
 @page "/notifications"
-@inject NotificationApiClient NotificationsApi
+@inject WmsApiClient Api
 @inject TokenStore TokenStore
 @inject ISnackbar Snackbar
 
 <PageTitle>Notifications</PageTitle>
-<MudText Typo="Typo.h4" GutterBottom="true">In-App Notifications</MudText>
+<PageHeader Title="In-App Notifications" />
 
 @if (!TokenStore.IsAuthenticated)
 {
@@ -48,13 +48,15 @@ else
     {
         if (!TokenStore.IsAuthenticated || TokenStore.UserId is null)
             return;
-        _rows = await NotificationsApi.InboxAsync(TokenStore.UserId);
+        _rows = await Api.Notification.InboxAsync(TokenStore.UserId);
     }
 
     private async Task MarkRead(Guid deliveryId)
     {
-        await NotificationsApi.MarkReadAsync(deliveryId);
-        Snackbar.Add("Ditandai dibaca.", Severity.Success);
+        var result = await Api.Notification.MarkReadAsync(deliveryId);
+        Snackbar.Add(
+            result.Success ? "Ditandai dibaca." : result.ErrorMessage!,
+            result.Success ? Severity.Success : Severity.Error);
         await Load();
     }
 }

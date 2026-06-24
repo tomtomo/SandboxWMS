@@ -1,0 +1,23 @@
+@* Modal yes/no. Pakai via IDialogService.ShowAsync<ConfirmDialog>(...). Konsumen pertama: M1 (deactivate). *@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2">@Title</MudText>
+        <MudText>@Message</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Tidak</MudButton>
+        <MudButton OnClick="Confirm" Color="@ConfirmColor" Variant="Variant.Filled">@ConfirmText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    [Parameter] public string Title { get; set; } = "Konfirmasi";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public string ConfirmText { get; set; } = "Ya";
+    [Parameter] public Color ConfirmColor { get; set; } = Color.Primary;
+
+    private void Confirm() => Dialog.Close(DialogResult.Ok(true));
+    private void Cancel() => Dialog.Cancel();
+}

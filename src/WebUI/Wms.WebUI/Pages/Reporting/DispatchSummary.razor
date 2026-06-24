@@ -1,0 +1,33 @@
+@page "/reporting/dispatch-summary"
+@inject WmsApiClient Api
+
+<PageTitle>Dispatch Summary</PageTitle>
+<PageHeader Title="Dispatch Summary" />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudTable T="DispatchSummaryRow" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true">
+    <HeaderContent><MudTh>Day</MudTh><MudTh>Waves</MudTh><MudTh>Total Volume</MudTh></HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Day.ToString("yyyy-MM-dd")</MudTd>
+        <MudTd>@context.WaveCount</MudTd>
+        <MudTd>@context.TotalVolume</MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+    <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Tidak ada data.</MudAlert></NoRecordsContent>
+</MudTable>
+
+@code {
+    private string? _error;
+
+    private async Task<TableData<DispatchSummaryRow>> LoadAsync(TableState state, CancellationToken ct)
+    {
+        var result = await Api.Reporting.ListDispatchSummaryAsync(state.Page + 1, state.PageSize, ct);
+        if (!result.Success) { _error = result.ErrorMessage; return new TableData<DispatchSummaryRow> { Items = Array.Empty<DispatchSummaryRow>(), TotalItems = 0 }; }
+        _error = null;
+        return new TableData<DispatchSummaryRow> { Items = result.Value!.Items, TotalItems = result.Value!.TotalCount };
+    }
+}

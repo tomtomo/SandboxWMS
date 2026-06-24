@@ -1,0 +1,65 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:480px;">
+        <MudText Typo="Typo.subtitle2">Discrepancy</MudText>
+        <MudList T="string" Dense="true" Class="mb-3">
+            <MudListItem T="string"><b>SKU:</b> @Existing.Sku</MudListItem>
+            <MudListItem T="string"><b>Type:</b> @Existing.Type</MudListItem>
+            <MudListItem T="string"><b>Qty:</b> @Existing.Qty</MudListItem>
+        </MudList>
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <MudSelect T="ResolutionAction?" @bind-Value="_form.Action" Label="Action" Required="true" Variant="Variant.Outlined" Class="mb-3">
+                <MudSelectItem T="ResolutionAction?" Value="@((ResolutionAction?)ResolutionAction.AcceptPartial)">AcceptPartial (ShortDelivery)</MudSelectItem>
+                <MudSelectItem T="ResolutionAction?" Value="@((ResolutionAction?)ResolutionAction.RejectExcess)">RejectExcess (OverDelivery)</MudSelectItem>
+                <MudSelectItem T="ResolutionAction?" Value="@((ResolutionAction?)ResolutionAction.ReturnToSupplier)">ReturnToSupplier (WrongItem)</MudSelectItem>
+                <MudSelectItem T="ResolutionAction?" Value="@((ResolutionAction?)ResolutionAction.SendToQC)">SendToQC (QcHold)</MudSelectItem>
+            </MudSelect>
+            <MudTextField @bind-Value="_form.Note" Label="Note (optional)" Lines="3" Variant="Variant.Outlined" Class="mb-3" />
+            <ValidationSummary />
+        </EditForm>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : "Simpan")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid GoodsReceiptId { get; set; }
+    [Parameter, EditorRequired] public DiscrepancyDto Existing { get; set; } = default!;
+
+    private ResolveDiscrepancyForm _form = new();
+    private EditContext _editContext = default!;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _form.Action = Existing.Type switch
+        {
+            nameof(DiscrepancyType.ShortDelivery) => ResolutionAction.AcceptPartial,
+            nameof(DiscrepancyType.OverDelivery) => ResolutionAction.RejectExcess,
+            nameof(DiscrepancyType.WrongItem) => ResolutionAction.ReturnToSupplier,
+            nameof(DiscrepancyType.QcHold) => ResolutionAction.SendToQC,
+            _ => null,
+        };
+        _editContext = new EditContext(_form);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!_editContext.Validate()) return;
+        _busy = true;
+        var result = await Api.Inbound.ResolveDiscrepancyAsync(GoodsReceiptId, Existing.Sku, Existing.Type, _form);
+        _busy = false;
+        if (result.Success) { Snackbar.Add($"Discrepancy {Existing.Sku} resolved.", Severity.Success); Dialog.Close(DialogResult.Ok(true)); }
+        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

@@ -1,0 +1,38 @@
+@inject WmsApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:480px;">
+        <MudAlert Severity="Severity.Warning" Class="mb-3">Dispatch menutup wave + semua order terkait (→ Closed), hapus Picked stock (keluar gudang), emit ShipmentDispatched. Tak bisa di-undo.</MudAlert>
+        <MudText Typo="Typo.body2"><b>Wave:</b> @WaveId</MudText>
+        @if (!string.IsNullOrEmpty(WaveStatus) && WaveStatus != nameof(Wms.WebUI.Services.WaveStatus.Ready))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">Wave status = @WaveStatus. Dispatch hanya untuk wave <b>Ready</b>.</MudAlert>
+        }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Error" Variant="Variant.Filled"
+                   Disabled="@(_busy || (!string.IsNullOrEmpty(WaveStatus) && WaveStatus != nameof(Wms.WebUI.Services.WaveStatus.Ready)))">@(_busy ? "Dispatching..." : "Dispatch Wave")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid WaveId { get; set; }
+    [Parameter] public string WaveStatus { get; set; } = "";
+    private bool _busy;
+
+    private async Task HandleSubmit()
+    {
+        _busy = true;
+        var result = await Api.Outbound.DispatchWaveAsync(WaveId);
+        _busy = false;
+        if (result.Success) { Snackbar.Add("Wave dispatched. ShipmentDispatched emitted.", Severity.Success); Dialog.Close(DialogResult.Ok(true)); }
+        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}
