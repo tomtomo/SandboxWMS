@@ -1,10 +1,14 @@
+using Wms.Auth.Grpc;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
+using Wms.BuildingBlocks.Infrastructure.Resilience;
 using Wms.BuildingBlocks.Web.Correlation;
+using Wms.BuildingBlocks.Web.Grpc;
 using Wms.BuildingBlocks.Application.Messaging;
 using Wms.Platform.Hosting;
 using Wms.Platform.Local.DependencyInjection;
 using Wms.Reporting.DependencyInjection;
+using Wms.Reporting.Directory;
 using Wms.Reporting.Endpoints;
 using Wms.Reporting.Messaging;
 using Wms.Reporting.Projectors;
@@ -32,6 +36,16 @@ else
     builder.Services.AddLocalMessaging();
 
 builder.Services.AddConsumerDeadLettering();
+
+// gRPC read-API client Auth (enrichment-at-read OperatorId→username) — ADR-0011 + RESILIENCE split-timeout
+// (ADR-0020 pipeline "wms-grpc") + s2s token (ADR-0021 Local stub kosong). Address via Aspire service discovery
+// (AppHost reporting.WithReference(auth)). Adapter IUserDirectory di-wire host (DIPISAH dari AddReporting agar
+// integration test bisa stub). Hanya read-path query yang sync-query Auth; projection PATH tetap nol sync-query
+// (ADR-0030 — semua dimensi ter-bawa payload event).
+builder.Services.AddGrpcResiliencePipeline();
+builder.Services.AddLocalServiceTokenProvider();
+builder.Services.AddWmsInternalGrpcClient<AuthReadApi.AuthReadApiClient>("https://auth", "auth");
+builder.Services.AddReportingDirectories();
 
 var app = builder.Build();
 

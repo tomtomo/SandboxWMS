@@ -4,6 +4,7 @@ using Wms.BuildingBlocks.Application.Messaging;
 using Wms.BuildingBlocks.Domain.Results;
 using Wms.Inventory.Contracts;
 using Wms.Outbound.Application.Features.ConsumeStockAllocated;
+using Wms.Outbound.Application.Features.ConsumeStockAllocationFailed;
 
 namespace Wms.Outbound.Infrastructure.Messaging;
 
@@ -19,6 +20,11 @@ public sealed class OutboundIntegrationEventDispatcher(IServiceScopeFactory scop
     public Task HandleStockAllocatedAsync(MessageEnvelope envelope, CancellationToken cancellationToken = default)
         => DispatchAsync<StockAllocatedV1, StockAllocatedConsumer>(
             envelope, StockAllocatedV1.LogicalName, (consumer, id, msg, ct) => consumer.HandleAsync(id, msg, ct), cancellationToken);
+
+    // ADR-0034: sinyal-gagal alokasi → tandai OrderLine Short/Backordered
+    public Task HandleStockAllocationFailedAsync(MessageEnvelope envelope, CancellationToken cancellationToken = default)
+        => DispatchAsync<StockAllocationFailedV1, StockAllocationFailedConsumer>(
+            envelope, StockAllocationFailedV1.LogicalName, (consumer, id, msg, ct) => consumer.HandleAsync(id, msg, ct), cancellationToken);
 
     // What: routing generik — filter logical name, terjemahkan payload, jalankan consumer dalam scope.
     // Why: satu definisi dispatch (deserialize + scope + error→throw) — rail Local fan-out ke SEMUA subscriber,

@@ -2,8 +2,9 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 
-@* Create order: customerId + shipTo + lines (sku free-text + qty). Order TIDAK warehouse-scoped; UOM
-   di-snapshot server-side. Nav ke detail (gap) setelah sukses. *@
+@* Create order: customerId + shipTo + lines (sku = product dropdown + qty). Order TIDAK warehouse-scoped;
+   UOM di-snapshot server-side (display read-only di sini, tak dikirim). Nav ke detail (gap) setelah sukses.
+   SKU = MudSelect dari ListProducts (closed-list) — gantikan free-text yang rawan typo → SKU tak ada di master. *@
 <MudDialog>
     <DialogContent>
         <div style="min-width:560px;">
@@ -12,10 +13,24 @@
             <MudTextField @bind-Value="_form.CustomerId" Label="Customer ID" Required="true" Variant="Variant.Outlined" Class="mb-3" />
             <MudTextField @bind-Value="_form.ShipTo" Label="Ship To" Lines="2" Required="true" Variant="Variant.Outlined" Class="mb-3" />
             <MudText Typo="Typo.subtitle1" Class="mt-3 mb-2">Order Lines</MudText>
+            @if (_products.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                    Belum ada product aktif. Buat dulu di Master Data → Products sebelum bikin order.
+                </MudAlert>
+            }
             <MudTable Items="_form.Lines" Dense="true" Hover="false">
-                <HeaderContent><MudTh>SKU</MudTh><MudTh Style="width:120px;">Qty</MudTh><MudTh Style="width:60px;"></MudTh></HeaderContent>
+                <HeaderContent><MudTh>SKU</MudTh><MudTh Style="width:90px;">UOM</MudTh><MudTh Style="width:120px;">Qty</MudTh><MudTh Style="width:60px;"></MudTh></HeaderContent>
                 <RowTemplate Context="row">
-                    <MudTd><MudTextField @bind-Value="row.Sku" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="SKU" /></MudTd>
+                    <MudTd>
+                        <MudSelect T="string" @bind-Value="row.Sku" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="SKU">
+                            @foreach (var p in _products)
+                            {
+                                <MudSelectItem T="string" Value="@p.Sku">@p.Sku — @p.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd><MudTextField Value="@UomFor(row.Sku)" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" Disabled="true" /></MudTd>
                     <MudTd><MudNumericField @bind-Value="row.Qty" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
                     <MudTd><MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Color="Color.Error" OnClick="@(() => _form.Lines.Remove(row))" /></MudTd>
                 </RowTemplate>
@@ -39,14 +54,21 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
     private CreateOrderForm _form = new() { Lines = { new OrderLineInput() } };
     private EditContext _editContext = default!;
+    private IReadOnlyList<ProductDto> _products = [];
     private bool _busy;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        _editContext = new EditContext(_form);
+        _editContext = new EditContext(_form); // sebelum await → siap untuk first render EditForm
+        var products = await Api.MasterData.ListProductsAsync(1, 200, isActive: true, search: null);
+        if (products.Success)
+            _products = products.Value!.Items;
     }
 
     private void AddLine() => _form.Lines.Add(new OrderLineInput());
+
+    // UOM display (read-only) dari product master — kosong bila SKU belum dipilih; tak ikut payload (server snapshot).
+    private string UomFor(string sku) => _products.FirstOrDefault(p => p.Sku == sku)?.Uom ?? "";
 
     private async Task HandleSubmit()
     {

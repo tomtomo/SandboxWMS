@@ -19,6 +19,8 @@ builder.Services.AddMudServices();
 // circuit-scoped auth state + typed API clients (Ports & Adapters UI; ADR-0006).
 builder.Services.AddScoped<TokenStore>();
 builder.Services.AddScoped<WmsApiClient>();
+// circuit-scoped reference-data lookup (Warehouse id→name) — dipakai lintas halaman tanpa re-fetch.
+builder.Services.AddScoped<WarehouseNameResolver>();
 builder.Services.AddHttpClient("gateway", client => client.BaseAddress = new Uri("http://gateway"));
 
 var app = builder.Build();

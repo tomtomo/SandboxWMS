@@ -1,5 +1,6 @@
 @page "/reporting/stock-on-hand"
 @inject WmsApiClient Api
+@inject WarehouseNameResolver WarehouseNames
 
 <PageTitle>Stock on Hand</PageTitle>
 <PageHeader Title="Stock on Hand" />
@@ -26,7 +27,7 @@
 <MudTable T="StockOnHandRow" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table">
     <HeaderContent><MudTh>Warehouse</MudTh><MudTh>SKU</MudTh><MudTh>Batch</MudTh><MudTh>Qty On Hand</MudTh></HeaderContent>
     <RowTemplate>
-        <MudTd>@context.WarehouseId</MudTd><MudTd>@context.Sku</MudTd><MudTd>@context.Batch</MudTd><MudTd>@context.QtyOnHand</MudTd>
+        <MudTd>@WarehouseNames.Resolve(context.WarehouseId)</MudTd><MudTd>@context.Sku</MudTd><MudTd>@context.Batch</MudTd><MudTd>@context.QtyOnHand</MudTd>
     </RowTemplate>
     <PagerContent><MudTablePager /></PagerContent>
     <NoRecordsContent><MudAlert Severity="Severity.Info" Class="ma-3">Tidak ada stock.</MudAlert></NoRecordsContent>
@@ -49,6 +50,7 @@
 
     private async Task<TableData<StockOnHandRow>> LoadAsync(TableState state, CancellationToken ct)
     {
+        await WarehouseNames.EnsureLoadedAsync(ct); // peta Id→Name siap sebelum RowTemplate render
         var result = await Api.Reporting.ListStockOnHandAsync(state.Page + 1, state.PageSize,
             string.IsNullOrWhiteSpace(_sku) ? null : _sku,
             _warehouseId?.ToString(), ct);

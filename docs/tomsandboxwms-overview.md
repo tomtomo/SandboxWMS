@@ -36,7 +36,7 @@ Alur inti: **terima barang → simpan ke rak → stok tersedia → terima order 
 
 | Event | Pemancar | Penerima | Payload inti | Efek di penerima |
 |---|---|---|---|---|
-| `GRConfirmed` | Inbound | Inventory | `grId`, `poRef`, `warehouseId`, `receivedLines[]`, `rejectedLines[]` | Per line di `receivedLines`: create Stock (Good → `OnHand`, QcHold → `Quarantine`) dan create `PutawayTask` untuk yang OnHand. `rejectedLines` tidak menambah stok. |
+| `GRConfirmed` | Inbound | Inventory | `grId`, `warehouseId`, `supplierId?`, `receivedLines[]`, `rejectedLines[]` | Per line di `receivedLines`: create Stock (Good → `OnHand`, QcHold → `Quarantine`) dan create `PutawayTask` untuk yang OnHand. `rejectedLines` tidak menambah stok. `supplierId` di-bawa untuk Reporting `ReceivingSummary` per-supplier. |
 
 #### Spesifikasi Aggregate
 
@@ -126,7 +126,10 @@ SPV buka GoodsReceipt, lihat ringkasan expected vs actual dan daftar discrepancy
 
 | Event | Pemancar | Penerima | Payload inti | Efek di penerima |
 |---|---|---|---|---|
-| `StockAllocated` | Inventory | Outbound | `waveId`, `allocations[]: { sku, locationId, batch, qty, stockId }` | Create `PickingTask` per entry `allocations[]`. |
+| `StockAllocated` | Inventory | Outbound | `waveId`, `allocations[]: { orderId, sku, locationId, batch, qty, stockId }` | Create `PickingTask` per entry; tandai `OrderLine.allocationStatus = Allocated` (via orderId). |
+| `StockAllocationFailed` | Inventory | Outbound, Notification | `waveId`, `lines[]: { orderId, sku, requestedQty, allocatedQty, shortQty }` | Outbound: tandai `OrderLine.allocationStatus = Short`/Backordered. Notification: alert stock short. |
+| `PutawayCompleted` | Inventory | Reporting | `putawayTaskId`, `stockId`, `sku`, `warehouseId`, `operatorId?` | `OperatorActivity` putaway-count per operator/hari. Di-emit saat `PutawayTask` Assigned→Completed (B2). |
+| `StockRemoved` | Inventory | Reporting | `waveId`, `lines[]: { warehouseId, sku, batch?, qty }` | `StockOnHandView` decrement + `DispatchSummary` (count + volume). Di-emit saat Inventory consume `ShipmentDispatched` lalu hapus Stock `Picked` (C6) — data milik Inventory yang `ShipmentDispatched` (cuma `waveId`) tak punya. |
 
 #### Spesifikasi Aggregate
 
@@ -163,21 +166,21 @@ Untuk setiap entry di `receivedLines`:
 `Stock: (none) → OnHand atau Quarantine` · `PutawayTask: Assigned` (hanya untuk OnHand)
 
 **B2 · Operator putaway;**
-Operator scan stock di receiving area, sistem tampilkan suggested destination. Operator pindah barang ke rak, scan destination location. PutawayTask completed, Stock pindah lokasi dan state berubah.
-`PutawayTask: Assigned → Completed` · `Stock: OnHand → Available`
+Operator scan stock di receiving area, sistem tampilkan suggested destination. Operator pindah barang ke rak, scan destination location. PutawayTask completed, Stock pindah lokasi dan state berubah. Saat selesai, Inventory memancarkan event `PutawayCompleted` (`inventory.putaway_completed.v1`) ke Reporting — dipakai meng-increment putaway-count per operator/hari di `OperatorActivity`. `operatorId` = aktor penyelesai (SYSTEM s/d authZ aktif). Event di-emit dalam **satu transaksi** dengan transisi PutawayTask/Stock lewat Outbox (anti dual-write).
+`PutawayTask: Assigned → Completed` · `Stock: OnHand → Available` · emit `PutawayCompleted` → Reporting
 
 #### Transisi state Stock yang dipicu modul lain
 
 | Trigger | Transisi |
 |---|---|
 | Event `WaveReleased` dari Outbound | `Available → Allocated` (lihat C3) |
-| `PickingTask: Assigned → Completed` di Outbound | `Allocated → Picked` (lihat C5) |
-| Event `ShipmentDispatched` dari Outbound | `Picked → (removed)` (lihat C6) |
+| Event `PickingCompleted` dari Outbound (`PickingTask` Assigned→Completed) | `Allocated → Picked` (lihat C5) |
+| Event `ShipmentDispatched` dari Outbound | `Picked → (removed)`, lalu Inventory emit `StockRemoved` → Reporting (lihat C6) |
 
 #### Implikasi ke modul lain
 
 1. **QC release flow** (`Quarantine → OnHand`) belum di-scope. Saat di-scope nanti, kemungkinan butuh aggregate baru (`QCInspection`) di modul terpisah.
-2. **Allocation failure** — jika stock Available tidak cukup untuk memenuhi `WaveReleased`, behavior saat ini implisit (partial allocation atau reject seluruh wave?). Perlu di-spec eksplisit; out of scope di iterasi ini.
+2. **Allocation failure** — jika stock `Available` tak cukup memenuhi `WaveReleased`, sistem **partial-allocate** (alokasi sebisanya, FEFO) lalu memancarkan event eksplisit **`StockAllocationFailed`** untuk sisa yang short (per line: `requestedQty`/`allocatedQty`/`shortQty`) → Outbound tandai `OrderLine` Short/Backordered + Notification alert. **Bukan** sync ATP-gate di order-entry, **bukan** reject seluruh wave. (Backorder auto re-allocation saat restock = deferred.)
 3. **Putaway strategy** (chaotic vs fixed vs ABC) di-treat sebagai konfigurasi internal modul Inventory, tidak terlihat dari luar.
 
 ---
@@ -193,7 +196,8 @@ Operator scan stock di receiving area, sistem tampilkan suggested destination. O
 | Event | Pemancar | Penerima | Payload inti | Efek di penerima |
 |---|---|---|---|---|
 | `WaveReleased` | Outbound | Inventory | `waveId`, `lines[]: { orderId, sku, qty }` | Per line: pilih stock `Available` sesuai strategy (default FEFO), mark sebagai `Allocated` ke wave ini. Emit `StockAllocated`. |
-| `ShipmentDispatched` | Outbound | Inventory | `waveId` | Remove semua Stock dengan state `Picked` yang terikat ke `waveId`. |
+| `PickingCompleted` | Outbound | Inventory | `waveId`, `pickingTaskId`, `stockId`, `sku`, `batch?`, `qty`, `stagingLocationId`, `operatorId?` | Transisi Stock `Allocated → Picked`, set `pickingTaskId` + staging location. `operatorId` juga di-consume Reporting (pick-count per operator). |
+| `ShipmentDispatched` | Outbound | Inventory | `waveId` | Remove semua Stock dengan state `Picked` yang terikat ke `waveId`; Inventory lalu emit `StockRemoved` → Reporting. |
 
 #### Spesifikasi Aggregate
 
@@ -203,8 +207,8 @@ Operator scan stock di receiving area, sistem tampilkan suggested destination. O
 
 | State | Field yang dikelola | Keterangan |
 |---|---|---|
-| **New** | `orderId`, `customerId`, `shipTo`, `orderLines[]` (per SKU: `sku`, `qty`, `uom`) | Order masuk ke WMS. Belum dimasukkan ke Wave. Belum dialokasi stock. |
-| **InProgress** | + `waveId` | Sudah dimasukkan ke Wave aktif. Stock allocation sedang/sudah berjalan. |
+| **New** | `orderId`, `customerId`, `shipTo`, `orderLines[]` (per SKU: `sku`, `qty`, `uom`, `allocationStatus`) | Order masuk ke WMS. Belum dimasukkan ke Wave. Belum dialokasi stock (`allocationStatus = Pending`). |
+| **InProgress** | + `waveId` | Sudah dimasukkan ke Wave aktif. Stock allocation berjalan: tiap line `allocationStatus: Pending → Allocated` (teralokasi) atau `Short`/Backordered (stock kurang — lihat C3). |
 | **Closed** | _(tidak ada field tambahan)_ | Wave sudah dispatch. Order selesai dari sisi WMS. |
 
 **`Wave`** — grouping OutboundOrder yang diproses bersama-sama untuk efisiensi picking & dispatch.
@@ -239,23 +243,25 @@ SPV pilih beberapa OutboundOrder yang akan diproses bersama → buat Wave. Tiap 
 `Wave: (none) → Active`
 
 **C3 · Inventory alokasi stock;**
-Inventory menerima `WaveReleased`. Untuk setiap line, sistem cari Stock dengan state `Available` sesuai allocation strategy (default FEFO — pick batch dengan expiry terdekat). Stock di-mark Allocated ke wave ini. Setelah semua line ter-alokasi, Inventory emit `StockAllocated` dengan detail per-alokasi (sku, locationId, batch, qty, stockId).
+Inventory menerima `WaveReleased`. Untuk setiap line, sistem cari Stock dengan state `Available` sesuai allocation strategy (default FEFO — pick batch dengan expiry terdekat). Stock di-mark Allocated ke wave ini. Inventory emit `StockAllocated` dengan detail per-alokasi (sku, locationId, batch, qty, stockId) untuk qty yang berhasil.
 `Stock: Available → Allocated`
+
+Bila stock `Available` **tak cukup** (`requestedQty > allocatedQty`), line itu **short**: Inventory alokasi sebisanya lalu memancarkan **`StockAllocationFailed`** untuk sisa (per line: `orderId`, `sku`, `requestedQty`, `allocatedQty`, `shortQty`). Outbound consume → `OrderLine.allocationStatus → Short`/Backordered; Notification consume → alert. Sisa demand tak hilang senyap; stock yang tak terpakai tetap `Available`.
 
 **C4 · Outbound buat PickingTask;**
 Outbound menerima `StockAllocated`. Untuk setiap entry `allocations[]`, sistem create PickingTask dan assign ke operator. `pickingTaskIds[]` di Wave terisi.
 `PickingTask: (none) → Assigned`
 
 **C5 · Operator picking;**
-Operator scan stock di rak, ambil barang, scan staging location. PickingTask completed. Stock pindah ke staging area dengan state `Picked`.
-`PickingTask: Assigned → Completed` · `Stock: Allocated → Picked`
+Operator scan stock di rak, ambil barang, scan staging location. PickingTask completed. Outbound memancarkan event `PickingCompleted` (`outbound.picking_completed.v1`) ke Inventory — Inventory transisikan Stock `Allocated → Picked` + set staging location. `operatorId` (aktor pick) ikut di-bawa untuk Reporting pick-count.
+`PickingTask: Assigned → Completed` · emit `PickingCompleted` → Inventory · `Stock: Allocated → Picked`
 
 Saat **semua** PickingTask di Wave sudah Completed:
 `Wave: Active → Ready`
 
 **C6 · SPV dispatch Wave;**
-SPV verifikasi loading ke truck & eksekusi dispatch. Modul Outbound emit event `ShipmentDispatched`. Semua OutboundOrder di wave ditutup. Inventory menerima event dan remove semua Stock dengan state `Picked` yang terikat ke wave ini (stok keluar gudang).
-`Wave: Ready → Dispatched` · `OutboundOrder: InProgress → Closed` · `Stock: Picked → (removed)` **selesai**
+SPV verifikasi loading ke truck & eksekusi dispatch. Modul Outbound emit event `ShipmentDispatched`. Semua OutboundOrder di wave ditutup. Inventory menerima event dan remove semua Stock dengan state `Picked` yang terikat ke wave ini (stok keluar gudang), lalu Inventory memancarkan `StockRemoved` (`inventory.stock_removed.v1`) ke Reporting — feed `StockOnHandView` decrement + `DispatchSummary` (count + volume).
+`Wave: Ready → Dispatched` · `OutboundOrder: InProgress → Closed` · `Stock: Picked → (removed)` · emit `StockRemoved` → Reporting **selesai**
 
 #### Implikasi & out-of-scope
 
@@ -442,7 +448,7 @@ Dedicated milestone "**Authorization Wire-Up**" sebelum P1 production-ready: gre
 | `StockOnHandView` | Snapshot stok per `(warehouse, sku, batch)` untuk inventory dashboard |
 | `ReceivingSummary` | Agregat GR per periode: volume, discrepancy rate, supplier performance |
 | `DispatchSummary` | Agregat dispatched wave per periode: volume, throughput |
-| `OperatorActivity` | Produktivitas operator: scan count, pick count, putaway count |
+| `OperatorActivity` | Produktivitas operator: putaway count, pick count (scan count **belum di-scope** — `ScanItem` adalah aksi Inbound-internal tanpa integration event) |
 
 Reporting **berbeda struktural** dari core & supporting modul lain: bukan transactional aggregate dengan state machine, tapi kumpulan **read models / projections** yang di-build dari domain event core modul. Tidak menulis ke domain — purely read-side.
 
@@ -459,15 +465,15 @@ Core modul (write side)  ──domain events──▶  Reporting (read side)
                                             Query API ──▶ Dashboard / Report
 ```
 
-Setiap projection di-update via event handler yang listen ke domain event relevan:
+Setiap projection di-update via event handler yang listen ke **integration event** lintas-context relevan (domain event tetap in-process — Reporting service terpisah, hanya lihat payload event):
 
 | Event sumber | Projection yang di-update | Operasi |
 |---|---|---|
-| `GRConfirmed` | `ReceivingSummary` | Tambah qty received, recompute discrepancy rate per supplier |
+| `GRConfirmed` (`inbound.gr_confirmed.v1`, + `supplierId`) | `ReceivingSummary` | Tambah qty received, recompute discrepancy rate per supplier |
 | `GRConfirmed` (per `receivedLine`) | `StockOnHandView` | Tambah qty per (warehouse, sku, batch) |
-| `ShipmentDispatched` | `DispatchSummary`, `StockOnHandView` | Tambah throughput; kurang qty di stock-on-hand |
-| `PutawayTask: Completed` | `OperatorActivity` | Increment putaway count untuk operator yang ditugaskan |
-| `PickingTask: Completed` | `OperatorActivity` | Increment pick count untuk operator |
+| `StockRemoved` (`inventory.stock_removed.v1`) | `DispatchSummary`, `StockOnHandView` | Tambah throughput + volume; kurang qty di stock-on-hand. Di-emit Inventory (pemilik Stock) saat dispatch — **bukan** `ShipmentDispatched` yang cuma bawa `waveId` tanpa qty |
+| `PutawayCompleted` (`inventory.putaway_completed.v1`) | `OperatorActivity` | Increment putaway count per operator |
+| `PickingCompleted` (`outbound.picking_completed.v1`, + `operatorId`) | `OperatorActivity` | Increment pick count per operator |
 
 #### Karakteristik
 
@@ -537,7 +543,7 @@ Catatan: tabel di atas adalah **default policy** — mapping aktual di-customize
 
 | State | Field yang dikelola | Keterangan |
 |---|---|---|
-| **Pending** | `deliveryId`, `subscriptionId`, `userId`, `channel`, `payload`, `eventRef` | Notifikasi sudah di-queue, belum dikirim. Worker akan ambil dan dispatch. |
+| **Pending** | `deliveryId`, `subscriptionId?`, `userId`, `channel`, `title`, `body`, `eventType`, `warehouseId?`, `eventRef` | Notifikasi sudah di-queue, belum dikirim. Worker akan ambil dan dispatch. `title`/`body` = isi notifikasi ter-render; `eventType` = logical source event (grouping inbox + DLQ name); `warehouseId` di-resolve ke nama via MasterData read-API saat dispatch; `subscriptionId` null untuk delivery DIRECT (mis. pick-completed ke operator). |
 | **Sent** | + `providerMessageId?` | Berhasil dikirim ke channel provider (SMTP, FCM, dll). Belum tentu sudah dibaca user. |
 | **Failed** | + `failureReason`, `retryCount` | Gagal kirim. Bisa di-retry sesuai policy retry; setelah max retry → DLQ. |
 | **Read** | _(tidak ada field tambahan)_ | User sudah baca notifikasi. Hanya applicable untuk channel `InApp`; tidak ter-track untuk Email/Push. |

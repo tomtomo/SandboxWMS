@@ -36,6 +36,7 @@ info:
     | `outbound.picking_completed.v1` | Outbound | Inventory | `PickingTask` Assigned→Completed (§B/§C5, ADR-0028) | ✅ ya | tipe+consumer **03b** · emitter 03c |
     | `inventory.putaway_completed.v1` | Inventory | Reporting | `PutawayTask` Assigned→Completed (§B2, ADR-0030) | ✅ ya | tipe+emitter+consumer **04c** |
     | `inventory.stock_removed.v1` | Inventory | Reporting | Stock `Picked→removed` saat dispatch (§B, ADR-0030) | ✅ ya | tipe+emitter+consumer **04c** |
+    | `inventory.stock_allocation_failed.v1` | Inventory | Outbound, Notification | line wave tak teralokasi penuh — stock kurang/nol (§B#2, ADR-0034) | ✅ ya | tipe+emitter+consumer **(ADR-0034)** |
     | `inventory.stock_low.v*` | Inventory | — (none) | Stock qty < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
     | `inventory.stock_near_expiry.v*` | Inventory | — (none) | Batch expiry < threshold | ⚠️ **emitted-but-unconsumed gap** (ADR-0023) | tak di-scope |
 
@@ -147,6 +148,20 @@ channels:
     messages:
       stockRemoved:
         $ref: '#/components/messages/StockRemovedV1'
+
+  inventoryStockAllocationFailed:
+    address: inventory.stock_allocation_failed.v1
+    title: Stock Allocation Failed
+    summary: Line wave tak teralokasi penuh — stock kurang/nol.
+    description: |
+      Event ke-8, **diputuskan di ADR-0034** — ganti silent-drop lama (overview §B#2 yang dulu out-of-scope).
+      Di-emit Inventory dari `WaveReleasedConsumer` saat sebuah line tak teralokasi penuh setelah FEFO
+      (`remaining > 0`). Membawa `lines[]` (orderId/sku/requested/allocated/short). Dikonsumsi **Outbound**
+      (tandai `OrderLine` Short/Backordered) + **Notification** (alert SPV/purchasing). Pola sinyal-gagal ala
+      eShop `OrderStockRejected`, eventual (bukan sync ATP-gate). CLR: `Wms.Inventory.Contracts.StockAllocationFailedV1`.
+    messages:
+      stockAllocationFailed:
+        $ref: '#/components/messages/StockAllocationFailedV1'
 
 #
 # OPERATIONS — perspektif aplikasi: `send` = emitter, `receive` = consumer (AsyncAPI 3.0).
@@ -266,6 +281,30 @@ operations:
     messages:
       - $ref: '#/channels/inventoryStockRemoved/messages/stockRemoved'
 
+  inventorySendStockAllocationFailed:
+    action: send
+    channel:
+      $ref: '#/channels/inventoryStockAllocationFailed'
+    summary: Inventory mempublish StockAllocationFailed saat line wave tak teralokasi penuh (ADR-0034).
+    messages:
+      - $ref: '#/channels/inventoryStockAllocationFailed/messages/stockAllocationFailed'
+
+  outboundReceiveStockAllocationFailed:
+    action: receive
+    channel:
+      $ref: '#/channels/inventoryStockAllocationFailed'
+    summary: Outbound meng-consume StockAllocationFailed → tandai OrderLine Short/Backordered.
+    messages:
+      - $ref: '#/channels/inventoryStockAllocationFailed/messages/stockAllocationFailed'
+
+  notificationReceiveStockAllocationFailed:
+    action: receive
+    channel:
+      $ref: '#/channels/inventoryStockAllocationFailed'
+    summary: Notification meng-consume StockAllocationFailed → alert subscriber (stock kurang untuk wave).
+    messages:
+      - $ref: '#/channels/inventoryStockAllocationFailed/messages/stockAllocationFailed'
+
 #
 # COMPONENTS — message + schema reusable.
 #
@@ -326,6 +365,14 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/StockRemovedV1Payload'
+
+    StockAllocationFailedV1:
+      name: StockAllocationFailedV1
+      title: Stock Allocation Failed (v1)
+      summary: Line wave tak teralokasi penuh — Outbound tandai Short/Backordered + Notification alert (ADR-0034).
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/StockAllocationFailedV1Payload'
 
   schemas:
     # --- Channel terisi penuh: harus cermin tipe Wms.Inbound.Contracts.GRConfirmedV1 ---
@@ -428,8 +475,12 @@ components:
     StockAllocationV1:
       type: object
       additionalProperties: false
-      required: [sku, locationId, qty, stockId]
+      required: [orderId, sku, locationId, qty, stockId]
       properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Order pemilik line (dari WaveLineV1) — Outbound atribusikan alokasi ke OrderLine (ADR-0034).
         sku: { type: string }
         locationId: { type: string }
         batch:
@@ -523,3 +574,39 @@ components:
         qty:
           type: integer
           minimum: 1
+
+    # --- ADR-0034: Inventory → Outbound + Notification (sinyal-gagal alokasi, ganti silent-drop) ---
+    StockAllocationFailedV1Payload:
+      type: object
+      additionalProperties: false
+      required: [waveId, lines]
+      properties:
+        waveId:
+          type: string
+          format: uuid
+        lines:
+          type: array
+          description: Line yang tak teralokasi penuh (hanya yang short; line penuh lewat StockAllocated).
+          items:
+            $ref: '#/components/schemas/StockAllocationFailedLineV1'
+    StockAllocationFailedLineV1:
+      type: object
+      additionalProperties: false
+      required: [orderId, sku, requestedQty, allocatedQty, shortQty]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        requestedQty:
+          type: integer
+          minimum: 1
+        allocatedQty:
+          type: integer
+          minimum: 0
+          description: Qty yang berhasil dialokasi (0 = tak ada stock; >0 = parsial). requested = allocated + short.
+        shortQty:
+          type: integer
+          minimum: 1
+          description: Qty kurang (selalu > 0 — line penuh tak masuk event ini).

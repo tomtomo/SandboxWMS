@@ -1,7 +1,11 @@
 @inject WmsApiClient Api
 @inject ISnackbar Snackbar
 
-@* Complete picking: input staging location (string code). NO ActualQty (backend tak punya). *@
+@* Complete picking: pilih staging location dari master data. NO ActualQty (backend tak punya).
+   Dropdown ber-bind ke LocationDto.Code (STRING) — bukan LocationId (Guid) — supaya payload + kontrak
+   backend (CompletePickingRequest.StagingLocationId : string, ditulis ke Stock.LocationId) tak berubah.
+   Difilter type=StagingArea (semua warehouse aktif); warehouse-scoping butuh WarehouseId di read-model
+   PickingTask (belum ada) → deferred. *@
 <MudDialog>
     <DialogContent>
         <div style="min-width:480px;">
@@ -13,15 +17,29 @@
         </MudList>
         <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
             <DataAnnotationsValidator />
-            <MudTextField @bind-Value="_form.StagingLocationId" Label="Staging Location (code)" Required="true"
-                          Variant="Variant.Outlined" Class="mb-3" HelperText="Kode staging area (mis. STG-01)." />
+            @if (_stagingLocations.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-3">
+                    Belum ada staging location aktif. Buat dulu di Master Data → Locations (type StagingArea).
+                </MudAlert>
+            }
+            else
+            {
+                <MudSelect T="string" @bind-Value="_form.StagingLocationId" Label="Staging Location" Required="true"
+                           Variant="Variant.Outlined" Class="mb-3" HelperText="Pilih staging area dari master data.">
+                    @foreach (var loc in _stagingLocations)
+                    {
+                        <MudSelectItem T="string" Value="@loc.Code">@loc.Code</MudSelectItem>
+                    }
+                </MudSelect>
+            }
             <ValidationSummary />
         </EditForm>
         </div>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
-        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : "Complete Picking")</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_busy || _stagingLocations.Count == 0)">@(_busy ? "..." : "Complete Picking")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -30,11 +48,16 @@
     [Parameter, EditorRequired] public PickingTaskDto Existing { get; set; } = default!;
     private CompletePickingForm _form = new();
     private EditContext _editContext = default!;
+    private IReadOnlyList<LocationDto> _stagingLocations = [];
     private bool _busy;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        _editContext = new EditContext(_form);
+        _editContext = new EditContext(_form); // sebelum await → siap untuk first render EditForm
+        var result = await Api.MasterData.ListLocationsAsync(
+            1, 100, warehouseId: null, type: LocationType.StagingArea, isActive: true);
+        if (result.Success)
+            _stagingLocations = result.Value!.Items;
     }
 
     private async Task HandleSubmit()

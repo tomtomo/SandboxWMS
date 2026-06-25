@@ -1,5 +1,6 @@
 @page "/master-data/locations"
 @inject WmsApiClient Api
+@inject WarehouseNameResolver WarehouseNames
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -32,12 +33,12 @@
 
 <MudTable T="LocationDto" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true" @ref="_table">
     <HeaderContent>
-        <MudTh>Code</MudTh><MudTh>Type</MudTh><MudTh>Warehouse Id</MudTh><MudTh>Active</MudTh><MudTh Style="width:80px;">Actions</MudTh>
+        <MudTh>Code</MudTh><MudTh>Type</MudTh><MudTh>Warehouse</MudTh><MudTh>Active</MudTh><MudTh Style="width:80px;">Actions</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd>@context.Code</MudTd>
         <MudTd><MudChip T="string" Size="Size.Small" Color="@TypeColor(context.Type)">@context.Type</MudChip></MudTd>
-        <MudTd>@context.WarehouseId</MudTd>
+        <MudTd>@WarehouseNames.Resolve(context.WarehouseId)</MudTd>
         <MudTd>@(context.IsActive ? "✓" : "✗")</MudTd>
         <MudTd>
             @if (context.IsActive)
@@ -58,6 +59,7 @@
 
     private async Task<TableData<LocationDto>> LoadAsync(TableState state, CancellationToken ct)
     {
+        await WarehouseNames.EnsureLoadedAsync(ct); // peta Id→Name siap sebelum RowTemplate render
         var result = await Api.MasterData.ListLocationsAsync(
             state.Page + 1, state.PageSize, warehouseId: null, type: _filterType, isActive: _showInactive ? null : true, ct);
         if (!result.Success)

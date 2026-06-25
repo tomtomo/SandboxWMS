@@ -190,6 +190,77 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task WaveReleased_partial_stock_emits_allocation_failed_for_shortfall()
+    {
+        await using var sp = await BuildInventoryAsync();
+
+        // hanya 4 unit Available; line minta 10 → 4 dialokasi + 6 SHORT (ADR-0034: emit StockAllocationFailed)
+        await SeedAsync(sp, StockStatus.Available, "SKU-1", "B1", new DateOnly(2026, 12, 31), 4);
+
+        var waveId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        await DeliverWaveReleasedAsync(sp, Guid.NewGuid(),
+            new WaveReleasedV1(waveId, [new WaveLineV1(orderId, "SKU-1", 10)]));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+        var emitted = Assert.Single(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockAllocationFailedV1.LogicalName).ToListAsync());
+        var payload = JsonSerializer.Deserialize<StockAllocationFailedV1>(emitted.Payload)!;
+        Assert.Equal(waveId, payload.WaveId);
+        var line = Assert.Single(payload.Lines);
+        Assert.Equal(orderId, line.OrderId);
+        Assert.Equal(10, line.RequestedQty);
+        Assert.Equal(4, line.AllocatedQty);
+        Assert.Equal(6, line.ShortQty);
+
+        // StockAllocated tetap emit untuk 4 yang berhasil; OrderId ter-atribusi ke alokasi
+        var allocated = Assert.Single(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockAllocatedV1.LogicalName).ToListAsync());
+        var allocPayload = JsonSerializer.Deserialize<StockAllocatedV1>(allocated.Payload)!;
+        Assert.Equal(4, allocPayload.Allocations.Sum(a => a.Qty));
+        Assert.All(allocPayload.Allocations, a => Assert.Equal(orderId, a.OrderId));
+    }
+
+    [Fact]
+    public async Task WaveReleased_zero_stock_emits_allocation_failed_full_short()
+    {
+        await using var sp = await BuildInventoryAsync();
+
+        // tak ada stock Available untuk SKU-1 → no-queue path: seluruh line short (allocated 0)
+        var waveId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        await DeliverWaveReleasedAsync(sp, Guid.NewGuid(),
+            new WaveReleasedV1(waveId, [new WaveLineV1(orderId, "SKU-1", 7)]));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+        var emitted = Assert.Single(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockAllocationFailedV1.LogicalName).ToListAsync());
+        var line = Assert.Single(JsonSerializer.Deserialize<StockAllocationFailedV1>(emitted.Payload)!.Lines);
+        Assert.Equal(7, line.RequestedQty);
+        Assert.Equal(0, line.AllocatedQty);
+        Assert.Equal(7, line.ShortQty);
+    }
+
+    [Fact]
+    public async Task WaveReleased_fully_satisfied_emits_no_allocation_failed()
+    {
+        await using var sp = await BuildInventoryAsync();
+        await SeedAsync(sp, StockStatus.Available, "SKU-1", "B1", new DateOnly(2026, 12, 31), 10);
+
+        await DeliverWaveReleasedAsync(sp, Guid.NewGuid(),
+            new WaveReleasedV1(Guid.NewGuid(), [new WaveLineV1(Guid.NewGuid(), "SKU-1", 10)]));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        Assert.Empty(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockAllocationFailedV1.LogicalName).ToListAsync());
+    }
+
+    [Fact]
     public async Task PickingCompleted_transitions_allocated_to_picked_at_staging()
     {
         await using var sp = await BuildInventoryAsync();

@@ -36,4 +36,6 @@ public sealed record ReceivingSummaryRow(
 
 public sealed record DispatchSummaryRow(DateOnly Day, int WaveCount, int TotalVolume);
 
-public sealed record OperatorActivityRow(string OperatorId, DateOnly Day, int PutawayCount, int PickCount);
+// OperatorName = username ter-resolve server-side (Auth read-API); fallback ke id/"SYSTEM" bila tak ditemukan.
+public sealed record OperatorActivityRow(
+    string OperatorId, string OperatorName, DateOnly Day, int PutawayCount, int PickCount);

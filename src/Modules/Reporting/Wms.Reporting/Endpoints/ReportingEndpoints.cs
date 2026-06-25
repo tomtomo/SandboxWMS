@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Wms.BuildingBlocks.Application.Pagination;
+using Wms.Reporting.Directory;
 using Wms.Reporting.Persistence;
 
 namespace Wms.Reporting.Endpoints;
@@ -80,22 +81,49 @@ public static class ReportingEndpoints
 
         // TODO-AUTH: Reporting.ViewOperatorActivity
         app.MapGet("/reports/operator-activity", async (
-            ReportingDbContext db, int? page, int? pageSize, CancellationToken cancellationToken) =>
+            ReportingDbContext db, IUserDirectory userDirectory,
+            int? page, int? pageSize, CancellationToken cancellationToken) =>
         {
             var (safePage, safeSize) = PageRequest.From(page, pageSize);
 
             var query = db.OperatorActivities.AsNoTracking();
             var total = await query.CountAsync(cancellationToken);
-            var rows = await query
+            var activities = await query
                 .OrderByDescending(activity => activity.Day).ThenBy(activity => activity.OperatorId)
                 .Skip((safePage - 1) * safeSize).Take(safeSize)
-                .Select(activity => new OperatorActivityRow(
-                    activity.OperatorId, activity.Day, activity.PutawayCount, activity.PickCount))
                 .ToListAsync(cancellationToken);
+
+            // What: enrichment-at-read (ACL) — OperatorId → username via Auth read-API (ADR-0011)
+            // Why: projection key-by id (stabil utk rebuild; username Auth-owned & mutable) → nama di-resolve
+            // saat query, BUKAN di-denormalize ke projection. Why dedupe: hindari N+1 — satu gRPC call per
+            // operator unik di halaman, bukan per-row.
+            var names = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var operatorId in activities.Select(activity => activity.OperatorId).Distinct())
+                names[operatorId] = await ResolveOperatorNameAsync(userDirectory, operatorId, cancellationToken);
+
+            var rows = activities
+                .Select(activity => new OperatorActivityRow(
+                    activity.OperatorId, names[activity.OperatorId],
+                    activity.Day, activity.PutawayCount, activity.PickCount))
+                .ToList();
             return Results.Ok(new PagedResult<OperatorActivityRow>(rows, safePage, safeSize, total));
         });
 
         return app;
+    }
+
+    // id sistem/anonim (authZ deferred → 07a; ICurrentUser.UserId = "SYSTEM"/"anonymous" sebelum atribusi nyata)
+    private static readonly HashSet<string> SystemOperatorIds =
+        new(StringComparer.OrdinalIgnoreCase) { "SYSTEM", "anonymous" };
+
+    // resolve username dgn fallback berlapis: label sistem → username Auth → id mentah (user tak ditemukan)
+    private static async Task<string> ResolveOperatorNameAsync(
+        IUserDirectory userDirectory, string operatorId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(operatorId) || SystemOperatorIds.Contains(operatorId))
+            return "SYSTEM";
+        var username = await userDirectory.GetUsernameAsync(operatorId, cancellationToken);
+        return string.IsNullOrWhiteSpace(username) ? operatorId : username;
     }
 }
 
@@ -107,4 +135,5 @@ public sealed record ReceivingSummaryRow(
 
 public sealed record DispatchSummaryRow(DateOnly Day, int WaveCount, int TotalVolume);
 
-public sealed record OperatorActivityRow(string OperatorId, DateOnly Day, int PutawayCount, int PickCount);
+public sealed record OperatorActivityRow(
+    string OperatorId, string OperatorName, DateOnly Day, int PutawayCount, int PickCount);

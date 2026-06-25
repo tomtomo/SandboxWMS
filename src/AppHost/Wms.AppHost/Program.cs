@@ -86,10 +86,13 @@ var outbound = builder.AddProject<Projects.Wms_Outbound_Host_Local>("outbound")
     .WaitForCompletion(migrations);
 
 // Phase 04c: Reporting = pure consumer (ADR-0017) — projection read-side dari domain event core via eventual
-// consistency + query REST. DB-per-service (reportingdb). TAK butuh public key (authZ read deferred → 07a)
-// maupun ref masterdata (semua dimensi projeksi ter-bawa di payload event, ADR-0030 — nol sync-query).
+// consistency + query REST. DB-per-service (reportingdb). Projection PATH tetap nol sync-query (semua dimensi
+// ter-bawa payload event, ADR-0030). Ref auth: enrichment-at-READ — operator-activity me-resolve OperatorId→
+// username via Auth read-API gRPC (ACL), bukan denormalize ke projection (username Auth-owned & mutable). TAK
+// butuh public key (authZ read deferred → 07a; s2s token Local stub).
 var reporting = builder.AddProject<Projects.Wms_Reporting_Host_Local>("reporting")
     .WithReference(reportingDb)
+    .WithReference(auth)
     .WithReference(rabbitmq).WaitFor(rabbitmq)
     .WaitFor(reportingDb)
     .WaitForCompletion(migrations);

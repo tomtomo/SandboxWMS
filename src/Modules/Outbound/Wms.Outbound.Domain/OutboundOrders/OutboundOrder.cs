@@ -92,4 +92,15 @@ public sealed class OutboundOrder : AuditableAggregateRoot<OutboundOrderId>
         Status = OutboundOrderStatus.Closed;
         return Result.Success();
     }
+
+    // What: tandai status alokasi sebuah line (ADR-0034) — dipicu consumer StockAllocated/StockAllocationFailed.
+    // Why: aggregate = satu-satunya entry point mutasi line; presedensi Short>Allocated dijaga OrderLine. No-op
+    // bila sku tak ada (idempotent + defensif vs payload tak sinkron) — tak melanggar invariant, tak butuh Result.
+    public void MarkLineAllocated(string sku) => LineFor(sku)?.MarkAllocated();
+
+    public void MarkLineShort(string sku) => LineFor(sku)?.MarkShort();
+
+    // orderLines[] = satu line per sku (overview §C) → match unik by sku
+    private OrderLine? LineFor(string sku) =>
+        _orderLines.FirstOrDefault(line => line.Sku == sku);
 }

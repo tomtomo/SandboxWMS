@@ -111,10 +111,10 @@ public sealed class OutboundReaderTests(PostgresFixture fixture)
     public async Task PickingTaskReader_lists_filtered_by_wave()
     {
         await using var sp = await BuildOutboundAsync();
-        var (_, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
 
         await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(
-            waveId, [new StockAllocationV1("SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid())]));
+            waveId, [new StockAllocationV1(orderId, "SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid())]));
 
         using var scope = sp.CreateScope();
         var reader = scope.ServiceProvider.GetRequiredService<IPickingTaskReader>();

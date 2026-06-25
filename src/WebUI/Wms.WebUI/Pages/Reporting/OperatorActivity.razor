@@ -12,7 +12,7 @@
 <MudTable T="OperatorActivityRow" ServerData="LoadAsync" Dense="true" Hover="true" Striped="true">
     <HeaderContent><MudTh>Operator</MudTh><MudTh>Day</MudTh><MudTh>Putaway</MudTh><MudTh>Pick</MudTh></HeaderContent>
     <RowTemplate>
-        <MudTd>@context.OperatorId</MudTd>
+        <MudTd>@context.OperatorName</MudTd>
         <MudTd>@context.Day.ToString("yyyy-MM-dd")</MudTd>
         <MudTd>@context.PutawayCount</MudTd>
         <MudTd>@context.PickCount</MudTd>

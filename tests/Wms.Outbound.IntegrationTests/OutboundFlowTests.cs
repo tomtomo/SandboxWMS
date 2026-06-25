@@ -9,6 +9,7 @@ using Wms.Inventory.Contracts;
 using Wms.Outbound.Application.DependencyInjection;
 using Wms.Outbound.Application.Features.CompletePicking;
 using Wms.Outbound.Application.Features.ConsumeStockAllocated;
+using Wms.Outbound.Application.Features.ConsumeStockAllocationFailed;
 using Wms.Outbound.Application.Features.CreateWave;
 using Wms.Outbound.Application.Features.DispatchWave;
 using Wms.Outbound.Application.Features.ReceiveOutboundOrder;
@@ -59,11 +60,11 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
     public async Task StockAllocated_creates_picking_task_per_allocation_and_attaches_to_wave()
     {
         await using var sp = await BuildOutboundAsync();
-        var (_, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
 
         var stockId = Guid.NewGuid();
         await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(
-            waveId, [new StockAllocationV1("SKU-1", "RACK-A1", "B1", 10, stockId)]));
+            waveId, [new StockAllocationV1(orderId, "SKU-1", "RACK-A1", "B1", 10, stockId)]));
 
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboundDbContext>();
@@ -78,16 +79,20 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
 
         var wave = await db.Waves.SingleAsync();
         Assert.Contains(task.Id.Value, wave.PickingTaskIds);
+
+        // ADR-0034: line teralokasi penuh → OrderLine.AllocationStatus = Allocated (atribusi via orderId)
+        var order = await db.OutboundOrders.SingleAsync(o => o.Id == new OutboundOrderId(orderId));
+        Assert.Equal(OrderLineAllocationStatus.Allocated, order.OrderLines.Single().AllocationStatus);
     }
 
     [Fact]
     public async Task StockAllocated_duplicate_delivery_creates_tasks_once()
     {
         await using var sp = await BuildOutboundAsync();
-        var (_, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
 
         var eventId = Guid.NewGuid();
-        var message = new StockAllocatedV1(waveId, [new StockAllocationV1("SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid())]);
+        var message = new StockAllocatedV1(waveId, [new StockAllocationV1(orderId, "SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid())]);
         await DeliverStockAllocatedAsync(sp, eventId, message);
         await DeliverStockAllocatedAsync(sp, eventId, message); // redelivery (at-least-once) — eventId sama
 
@@ -102,12 +107,12 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
     public async Task CompletePicking_emits_picking_completed_and_marks_wave_ready_only_when_all_done()
     {
         await using var sp = await BuildOutboundAsync();
-        var (_, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10), ("SKU-2", 5));
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10), ("SKU-2", 5));
 
         await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(waveId,
         [
-            new StockAllocationV1("SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid()),
-            new StockAllocationV1("SKU-2", "RACK-A2", "B2", 5, Guid.NewGuid()),
+            new StockAllocationV1(orderId, "SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid()),
+            new StockAllocationV1(orderId, "SKU-2", "RACK-A2", "B2", 5, Guid.NewGuid()),
         ]));
 
         var taskIds = await PickingTaskIdsAsync(sp, waveId);
@@ -138,7 +143,7 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
         var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
 
         await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(
-            waveId, [new StockAllocationV1("SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid())]));
+            waveId, [new StockAllocationV1(orderId, "SKU-1", "RACK-A1", "B1", 10, Guid.NewGuid())]));
         var taskIds = await PickingTaskIdsAsync(sp, waveId);
         Assert.True((await SendAsync(sp, new CompletePickingCommand(taskIds[0], "STG-1"))).IsSuccess);
 
@@ -164,6 +169,40 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
 
         Assert.True(result.IsFailure);
         Assert.Equal(WaveErrors.InvalidDispatch, result.Error);
+    }
+
+    [Fact]
+    public async Task StockAllocationFailed_marks_order_line_short()
+    {
+        await using var sp = await BuildOutboundAsync();
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
+
+        // ADR-0034: zero-stock line → StockAllocationFailed → OrderLine ditandai Short (bukan silent-drop)
+        await DeliverStockAllocationFailedAsync(sp, Guid.NewGuid(), new StockAllocationFailedV1(
+            waveId, [new StockAllocationFailedLineV1(orderId, "SKU-1", 10, 0, 10)]));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OutboundDbContext>();
+        var order = await db.OutboundOrders.SingleAsync(o => o.Id == new OutboundOrderId(orderId));
+        Assert.Equal(OrderLineAllocationStatus.Short, order.OrderLines.Single().AllocationStatus);
+    }
+
+    [Fact]
+    public async Task Partially_allocated_line_ends_short_not_allocated()
+    {
+        await using var sp = await BuildOutboundAsync();
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
+
+        // teralokasi sebagian: StockAllocated qty 7 + StockAllocationFailed short 3 → Short MENANG atas Allocated
+        await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(
+            waveId, [new StockAllocationV1(orderId, "SKU-1", "RACK-A1", "B1", 7, Guid.NewGuid())]));
+        await DeliverStockAllocationFailedAsync(sp, Guid.NewGuid(), new StockAllocationFailedV1(
+            waveId, [new StockAllocationFailedLineV1(orderId, "SKU-1", 10, 7, 3)]));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OutboundDbContext>();
+        var order = await db.OutboundOrders.SingleAsync(o => o.Id == new OutboundOrderId(orderId));
+        Assert.Equal(OrderLineAllocationStatus.Short, order.OrderLines.Single().AllocationStatus);
     }
 
     // ---- harness ----
@@ -207,6 +246,15 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
         using var scope = sp.CreateScope();
         var result = await scope.ServiceProvider
             .GetRequiredService<StockAllocatedConsumer>().HandleAsync(eventId, message);
+        Assert.True(result.IsSuccess, result.IsFailure ? $"{result.Error.Code}: {result.Error.Message}" : null);
+    }
+
+    private static async Task DeliverStockAllocationFailedAsync(
+        ServiceProvider sp, Guid eventId, StockAllocationFailedV1 message)
+    {
+        using var scope = sp.CreateScope();
+        var result = await scope.ServiceProvider
+            .GetRequiredService<StockAllocationFailedConsumer>().HandleAsync(eventId, message);
         Assert.True(result.IsSuccess, result.IsFailure ? $"{result.Error.Code}: {result.Error.Message}" : null);
     }
 
