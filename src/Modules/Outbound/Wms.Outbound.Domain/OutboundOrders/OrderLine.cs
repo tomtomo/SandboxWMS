@@ -13,6 +13,9 @@ public sealed class OrderLine
 
     public string Uom { get; private set; } = null!;
 
+    // What: hasil alokasi line (ADR-0034) — default Pending sampai wave allocation me-resolve
+    public OrderLineAllocationStatus AllocationStatus { get; private set; } = OrderLineAllocationStatus.Pending;
+
     private OrderLine() { }
 
     internal OrderLine(string sku, int qty, string uom)
@@ -21,4 +24,15 @@ public sealed class OrderLine
         Qty = qty;
         Uom = uom;
     }
+
+    // What: tandai teralokasi (StockAllocated). Hanya promote dari Pending — TAK menimpa Short (Short menang
+    // bila line teralokasi sebagian: ordering event eventual tak menentukan hasil akhir). Idempotent.
+    internal void MarkAllocated()
+    {
+        if (AllocationStatus == OrderLineAllocationStatus.Pending)
+            AllocationStatus = OrderLineAllocationStatus.Allocated;
+    }
+
+    // What: tandai short/backorder (StockAllocationFailed) — selalu menang (line butuh perhatian). Idempotent.
+    internal void MarkShort() => AllocationStatus = OrderLineAllocationStatus.Short;
 }

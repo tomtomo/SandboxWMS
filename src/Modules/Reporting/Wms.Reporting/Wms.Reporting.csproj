@@ -12,6 +12,8 @@
     <ProjectReference Include="..\..\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
     <ProjectReference Include="..\..\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
     <ProjectReference Include="..\..\Inventory\Wms.Inventory.Contracts\Wms.Inventory.Contracts.csproj" />
+    <!-- gRPC read-API client stub (FF#3 *.Grpc only) — enrichment-at-read OperatorId→username (Auth) -->
+    <ProjectReference Include="..\..\Auth\Wms.Auth.Grpc\Wms.Auth.Grpc.csproj" />
   </ItemGroup>
 
   <ItemGroup>

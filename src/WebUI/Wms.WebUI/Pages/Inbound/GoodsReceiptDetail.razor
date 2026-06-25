@@ -1,5 +1,6 @@
 @page "/goods-receipts/{Id:guid}"
 @inject WmsApiClient Api
+@inject WarehouseNameResolver WarehouseNames
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -39,7 +40,7 @@ else
                 <MudText Typo="Typo.body2"><b>Dock:</b> @_gr.DockDoor</MudText>
             </div>
             <div>
-                <MudText Typo="Typo.body2"><b>Warehouse Id:</b> @_gr.WarehouseId</MudText>
+                <MudText Typo="Typo.body2"><b>Warehouse:</b> @WarehouseNames.Resolve(_gr.WarehouseId)</MudText>
                 <MudText Typo="Typo.body2"><b>GR ID:</b> @_gr.GoodsReceiptId</MudText>
             </div>
             @if (!string.IsNullOrEmpty(_gr.HoldReason))
@@ -157,6 +158,7 @@ else
     private async Task LoadGr()
     {
         _loading = true;
+        await WarehouseNames.EnsureLoadedAsync(); // resolve nama warehouse GR ini
         var result = await Api.Inbound.GetDetailAsync(Id);
         if (!result.Success)
         {

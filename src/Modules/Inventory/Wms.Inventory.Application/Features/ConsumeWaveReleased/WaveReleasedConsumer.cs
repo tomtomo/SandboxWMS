@@ -49,50 +49,58 @@ public sealed class WaveReleasedConsumer(
                     group.OrderBy(stock => stock.Expiry ?? DateOnly.MaxValue).ThenBy(stock => stock.Id.Value)));
 
         var allocations = new List<StockAllocationV1>();
+        var shortLines = new List<StockAllocationFailedLineV1>();
         foreach (var line in message.Lines)
         {
-            if (!fefoQueues.TryGetValue(line.Sku, out var queue))
-                continue;
-
             // Akumulasi qty lintas batch FEFO sampai qty LINE terpenuhi (bukan sekadar ambil 1 lot utuh):
             // lot expiry-terdekat di-exhaust DULU, lot terakhir yang MELEBIHI sisa di-SPLIT (porsi parsial).
             // Tanpa ini → alokasi seluruh lot pertama (over-allocation: mengunci stok tak dipesan + qty
-            // PickingTask salah). Stock Available tak cukup = OUT-OF-SCOPE global (assume cukup): line tak
-            // penuh sekadar berhenti tanpa alokasi (tak ada partial/reject/notify policy).
+            // PickingTask salah). SKU tanpa antrian (stock nol) → loop di-skip, remaining = qty penuh.
             var remaining = line.Qty;
-            while (remaining > 0 && queue.Count > 0)
-            {
-                var stock = queue.Peek();
-                if (stock.Quantity <= remaining)
+            if (fefoQueues.TryGetValue(line.Sku, out var queue))
+                while (remaining > 0 && queue.Count > 0)
                 {
-                    // lot habis dialokasi PENUH → keluar antrian, lanjut lot FEFO berikut untuk sisa
-                    queue.Dequeue();
-                    var allocate = stock.Allocate(message.WaveId);
-                    if (allocate.IsFailure)
-                        return Result.Failure(allocate.Error);
+                    var stock = queue.Peek();
+                    if (stock.Quantity <= remaining)
+                    {
+                        // lot habis dialokasi PENUH → keluar antrian, lanjut lot FEFO berikut untuk sisa
+                        queue.Dequeue();
+                        var allocate = stock.Allocate(message.WaveId);
+                        if (allocate.IsFailure)
+                            return Result.Failure(allocate.Error);
 
-                    allocations.Add(new StockAllocationV1(
-                        stock.Sku, stock.LocationId, stock.Batch, stock.Quantity, stock.Id.Value));
-                    remaining -= stock.Quantity;
-                }
-                else
-                {
-                    // lot > sisa → SPLIT: alokasi `remaining` ke Stock baru; lot ini tetap Available dgn
-                    // qty berkurang (tetap di antrian untuk line berikutnya sku yang sama). Konservasi terjaga.
-                    var split = stock.SplitForAllocation(StockId.New(), remaining, message.WaveId);
-                    if (split.IsFailure)
-                        return Result.Failure(split.Error);
+                        allocations.Add(new StockAllocationV1(
+                            line.OrderId, stock.Sku, stock.LocationId, stock.Batch, stock.Quantity, stock.Id.Value));
+                        remaining -= stock.Quantity;
+                    }
+                    else
+                    {
+                        // lot > sisa → SPLIT: alokasi `remaining` ke Stock baru; lot ini tetap Available dgn
+                        // qty berkurang (tetap di antrian untuk line berikutnya sku yang sama). Konservasi terjaga.
+                        var split = stock.SplitForAllocation(StockId.New(), remaining, message.WaveId);
+                        if (split.IsFailure)
+                            return Result.Failure(split.Error);
 
-                    var allocated = split.Value;
-                    await stockRepository.AddAsync(allocated, cancellationToken);
-                    allocations.Add(new StockAllocationV1(
-                        allocated.Sku, allocated.LocationId, allocated.Batch, allocated.Quantity, allocated.Id.Value));
-                    remaining = 0;
+                        var allocated = split.Value;
+                        await stockRepository.AddAsync(allocated, cancellationToken);
+                        allocations.Add(new StockAllocationV1(
+                            line.OrderId, allocated.Sku, allocated.LocationId, allocated.Batch, allocated.Quantity, allocated.Id.Value));
+                        remaining = 0;
+                    }
                 }
-            }
+
+            // ADR-0034: line tak teralokasi penuh (stock kurang/nol) → catat short EKSPLISIT (ganti silent-drop).
+            // allocatedQty + shortQty == requestedQty (konservasi). allocatedQty 0 = sama sekali tak ada stock.
+            if (remaining > 0)
+                shortLines.Add(new StockAllocationFailedLineV1(
+                    line.OrderId, line.Sku, line.Qty, line.Qty - remaining, remaining));
         }
 
         outbox.Enqueue(ToEnvelope(message.WaveId, allocations));
+        // ADR-0034: emit sinyal-gagal HANYA bila ada line short (hindari event kosong) → Outbound tandai
+        // OrderLine Short/Backordered + Notification alert. Satu transaksi dgn alokasi + Inbox-mark.
+        if (shortLines.Count > 0)
+            outbox.Enqueue(ToFailedEnvelope(message.WaveId, shortLines));
         inbox.MarkProcessed(eventId, HandlerType);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Success();
@@ -104,5 +112,13 @@ public sealed class WaveReleasedConsumer(
     {
         var payload = new StockAllocatedV1(waveId, allocations);
         return MessageEnvelope.For(StockAllocatedV1.LogicalName, payload);
+    }
+
+    // What: Message Translator (EIP) — line short → StockAllocationFailed envelope (ADR-0034)
+    // How: EventId baru = identitas outbox/idempotency; konsumen (Outbound + Notification) dedup via Inbox.
+    private static MessageEnvelope ToFailedEnvelope(Guid waveId, IReadOnlyList<StockAllocationFailedLineV1> shortLines)
+    {
+        var payload = new StockAllocationFailedV1(waveId, shortLines);
+        return MessageEnvelope.For(StockAllocationFailedV1.LogicalName, payload);
     }
 }

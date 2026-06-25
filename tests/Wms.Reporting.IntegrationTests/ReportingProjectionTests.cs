@@ -1,13 +1,16 @@
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wms.BuildingBlocks.Application.Pagination;
 using Wms.BuildingBlocks.Infrastructure.Messaging;
 using Wms.Inbound.Contracts;
 using Wms.Inventory.Contracts;
 using Wms.Outbound.Contracts;
+using Wms.Reporting.Directory;
 using Wms.Reporting.Endpoints;
 using Wms.Reporting.Persistence;
 using Wms.Reporting.Projectors;
@@ -121,6 +124,63 @@ public sealed class ReportingProjectionTests(PostgresFixture fixture)
         Assert.Equal(Day, activity.Day);
         Assert.Equal(1, activity.PutawayCount);
         Assert.Equal(1, activity.PickCount);
+    }
+
+    [Fact]
+    public async Task Operator_activity_endpoint_resolves_username_via_directory()
+    {
+        // stub Auth read-API: op-1 → "alice" (enrichment-at-read)
+        var directory = new StubUserDirectory(new Dictionary<string, string> { ["op-1"] = "alice" });
+        await using var factory = await CreateFactoryAsync(directory);
+
+        await ProjectPutawayCompletedAsync(factory, Guid.NewGuid(), At, new PutawayCompletedV1(
+            Guid.NewGuid(), Guid.NewGuid(), "SKU-1", Warehouse, "op-1"));
+
+        var client = factory.CreateClient();
+        var result = await client
+            .GetFromJsonAsync<PagedResult<OperatorActivityRow>>("/reports/operator-activity");
+
+        var row = Assert.Single(result!.Items);
+        Assert.Equal("op-1", row.OperatorId);
+        Assert.Equal("alice", row.OperatorName);   // username ter-resolve, bukan id mentah
+    }
+
+    [Fact]
+    public async Task Operator_activity_endpoint_falls_back_to_id_when_user_unknown()
+    {
+        // directory tak punya match → GetUsernameAsync null → fallback ke id mentah
+        var directory = new StubUserDirectory(new Dictionary<string, string>());
+        await using var factory = await CreateFactoryAsync(directory);
+
+        await ProjectPickingCompletedAsync(factory, Guid.NewGuid(), At, new PickingCompletedV1(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SKU-1", "B1", 5, "STG-1", "op-9"));
+
+        var client = factory.CreateClient();
+        var result = await client
+            .GetFromJsonAsync<PagedResult<OperatorActivityRow>>("/reports/operator-activity");
+
+        var row = Assert.Single(result!.Items);
+        Assert.Equal("op-9", row.OperatorId);
+        Assert.Equal("op-9", row.OperatorName);   // fallback ke id (user tak ditemukan)
+    }
+
+    [Fact]
+    public async Task Operator_activity_endpoint_shows_system_label_without_calling_directory()
+    {
+        // id sistem (authZ deferred → 07a): short-circuit ke "SYSTEM" TANPA tanya directory (peta sengaja
+        // memetakan "SYSTEM"→"wrong"; bila directory dipanggil, assert akan gagal → membuktikan short-circuit).
+        var directory = new StubUserDirectory(new Dictionary<string, string> { ["SYSTEM"] = "wrong" });
+        await using var factory = await CreateFactoryAsync(directory);
+
+        await ProjectPutawayCompletedAsync(factory, Guid.NewGuid(), At, new PutawayCompletedV1(
+            Guid.NewGuid(), Guid.NewGuid(), "SKU-1", Warehouse, "SYSTEM"));
+
+        var client = factory.CreateClient();
+        var result = await client
+            .GetFromJsonAsync<PagedResult<OperatorActivityRow>>("/reports/operator-activity");
+
+        var row = Assert.Single(result!.Items);
+        Assert.Equal("SYSTEM", row.OperatorName);
     }
 
     [Fact]
@@ -242,18 +302,36 @@ public sealed class ReportingProjectionTests(PostgresFixture fixture)
         Assert.True(result.IsSuccess, result.IsFailure ? $"{result.Error.Code}: {result.Error.Message}" : null);
     }
 
-    private async Task<ReportingFactory> CreateFactoryAsync()
+    private async Task<ReportingFactory> CreateFactoryAsync(IUserDirectory? userDirectory = null)
     {
-        var factory = new ReportingFactory(await fixture.CreateDatabaseAsync());
+        var factory = new ReportingFactory(await fixture.CreateDatabaseAsync(), userDirectory);
         using var scope = factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<ReportingDbContext>().Database.MigrateAsync();
         return factory;
     }
 
-    // WebApplicationFactory host Reporting (Program public partial) — override connection string ke test DB
-    private sealed class ReportingFactory(string connectionString) : WebApplicationFactory<Program>
+    // WebApplicationFactory host Reporting (Program public partial) — override connection string ke test DB.
+    // userDirectory: stub IUserDirectory (ACL) menggantikan adapter gRPC (host AddReportingDirectories) lewat
+    // ConfigureTestServices → enrichment-at-read teruji TANPA server Auth nyata (pola stub Notification).
+    private sealed class ReportingFactory(string connectionString, IUserDirectory? userDirectory)
+        : WebApplicationFactory<Program>
     {
-        protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
             builder.UseSetting("ConnectionStrings:reportingdb", connectionString);
+            if (userDirectory is not null)
+                builder.ConfigureTestServices(services =>
+                {
+                    services.RemoveAll<IUserDirectory>();
+                    services.AddSingleton(userDirectory);
+                });
+        }
+    }
+
+    // stub IUserDirectory — kembalikan username dari peta, null bila tak ada (mensimulasi NotFound → fallback)
+    private sealed class StubUserDirectory(IReadOnlyDictionary<string, string> usernames) : IUserDirectory
+    {
+        public Task<string?> GetUsernameAsync(string userId, CancellationToken cancellationToken = default)
+            => Task.FromResult(usernames.TryGetValue(userId, out var name) ? name : null);
     }
 }

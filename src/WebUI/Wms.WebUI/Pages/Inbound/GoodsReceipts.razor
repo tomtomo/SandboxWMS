@@ -1,5 +1,6 @@
 @page "/goods-receipts"
 @inject WmsApiClient Api
+@inject WarehouseNameResolver WarehouseNames
 @inject TokenStore TokenStore
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
@@ -77,7 +78,7 @@ else
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd DataLabel="GR">@ShortId(context.GrId)</MudTd>
-                        <MudTd DataLabel="Warehouse">@context.WarehouseId</MudTd>
+                        <MudTd DataLabel="Warehouse">@WarehouseNames.Resolve(context.WarehouseId)</MudTd>
                         <MudTd DataLabel="PO">@context.PoRef</MudTd>
                         <MudTd DataLabel="Status">@context.Status</MudTd>
                         <MudTd DataLabel="Lines">@context.ExpectedLineCount</MudTd>
@@ -111,6 +112,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await WarehouseNames.EnsureLoadedAsync(); // peta Id→Name untuk kolom Warehouse di GR List
         await LoadLookups();
         await Load();
     }

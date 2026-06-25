@@ -17,6 +17,8 @@ public sealed record StockAllocatedV1(
 
 // What: satu hasil alokasi stock per line wave (published language)
 // Why: membawa identitas Stock terpilih + lokasi/batch/qty sehingga Outbound bisa membuat PickingTask
-// yang mengarah ke rak fisik yang benar. Batch nullable (produk tanpa batch-tracking).
+// yang mengarah ke rak fisik yang benar. Batch nullable (produk tanpa batch-tracking). OrderId di-bawa
+// (dari WaveLineV1) agar Outbound bisa meng-atribusikan alokasi ke OrderLine yang tepat (tandai Allocated,
+// ADR-0034) — satu wave line punya orderId; FEFO bisa pecah jadi banyak entry, semua milik order yang sama.
 public sealed record StockAllocationV1(
-    string Sku, string LocationId, string? Batch, int Qty, Guid StockId);
+    Guid OrderId, string Sku, string LocationId, string? Batch, int Qty, Guid StockId);

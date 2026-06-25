@@ -12,6 +12,7 @@
     <!-- Konsumsi integration event lintas-context (published language, FF#3 *.Contracts only) -->
     <ProjectReference Include="..\..\Inbound\Wms.Inbound.Contracts\Wms.Inbound.Contracts.csproj" />
     <ProjectReference Include="..\..\Outbound\Wms.Outbound.Contracts\Wms.Outbound.Contracts.csproj" />
+    <ProjectReference Include="..\..\Inventory\Wms.Inventory.Contracts\Wms.Inventory.Contracts.csproj" />
     <!-- gRPC read-API client stub (FF#3 *.Grpc only) — recipient detail (Auth) + warehouse context (MasterData) -->
     <ProjectReference Include="..\..\Auth\Wms.Auth.Grpc\Wms.Auth.Grpc.csproj" />
     <ProjectReference Include="..\..\MasterData\Wms.MasterData.Grpc\Wms.MasterData.Grpc.csproj" />

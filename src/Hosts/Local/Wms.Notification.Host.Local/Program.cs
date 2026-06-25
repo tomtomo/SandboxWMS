@@ -20,7 +20,7 @@ var builder = WebApplication.CreateBuilder(args);
 // service defaults agnostic: health + service discovery + HTTP resilience + OTel (ADR-0008)
 builder.AddServiceDefaults();
 
-// Notification = PURE CONSUMER (ADR-0017): consume 2 event lintas-context → subscription → enqueue
+// Notification = PURE CONSUMER (ADR-0017): consume 3 event lintas-context → subscription → enqueue
 // NotificationDelivery + worker async dispatch ke channel (idempotency + retry→DLQ). DbContext
 // (notification + inbox/dead_letter) + adapter Local (IDeadLetterStore + channel log) + consumer
 // dead-lettering. Profil serverless/Cloud Run push → Functions 05d / 06d.
@@ -71,6 +71,8 @@ subscriber.Subscribe(deadLettering.Wrap(
     GoodsReceiptConfirmedNotifier.HandlerType, dispatcher.HandleGoodsReceiptConfirmedAsync));
 subscriber.Subscribe(deadLettering.Wrap(
     PickingCompletedNotifier.HandlerType, dispatcher.HandlePickingCompletedAsync));
+subscriber.Subscribe(deadLettering.Wrap(
+    StockAllocationFailedNotifier.HandlerType, dispatcher.HandleStockAllocationFailedAsync));
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => "Wms.Notification.Host.Local — Phase 04d (async delivery + idempotency + retry/DLQ)");

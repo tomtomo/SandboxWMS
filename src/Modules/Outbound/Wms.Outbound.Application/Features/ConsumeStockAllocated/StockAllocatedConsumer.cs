@@ -18,6 +18,7 @@ namespace Wms.Outbound.Application.Features.ConsumeStockAllocated;
 public sealed class StockAllocatedConsumer(
     IWaveRepository waveRepository,
     IPickingTaskRepository pickingTaskRepository,
+    IOutboundOrderRepository orderRepository,
     IInboxGuard inbox,
     IUnitOfWork unitOfWork)
 {
@@ -48,8 +49,28 @@ public sealed class StockAllocatedConsumer(
         if (attach.IsFailure)
             return Result.Failure(attach.Error);
 
+        // ADR-0034: tandai OrderLine teralokasi (Pending→Allocated; Short menang bila line juga short).
+        // Best-effort: muat order yang ADA dari orderId alokasi; PickingTask tetap output utama (tak gagal
+        // bila order tak ditemukan). Mutasi tracked → ter-flush di SaveChanges (satu transaksi, DB-per-service).
+        await MarkLinesAllocatedAsync(message.Allocations, cancellationToken);
+
         inbox.MarkProcessed(eventId, HandlerType);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Success();
+    }
+
+    private async Task MarkLinesAllocatedAsync(
+        IReadOnlyList<StockAllocationV1> allocations, CancellationToken cancellationToken)
+    {
+        var orderIds = allocations.Select(allocation => allocation.OrderId).Distinct().ToArray();
+        if (orderIds.Length == 0)
+            return;
+
+        var orders = (await orderRepository.ListByIdsAsync(orderIds, cancellationToken))
+            .ToDictionary(order => order.Id.Value);
+
+        foreach (var allocation in allocations)
+            if (orders.TryGetValue(allocation.OrderId, out var order))
+                order.MarkLineAllocated(allocation.Sku);
     }
 }

@@ -33,6 +33,9 @@ public sealed class OutboundOrderConfiguration : IEntityTypeConfiguration<Outbou
             line.Property(entry => entry.Sku).HasMaxLength(64).IsRequired();
             line.Property(entry => entry.Qty).IsRequired();
             line.Property(entry => entry.Uom).HasMaxLength(16).IsRequired();
+            // ADR-0034: status alokasi line (string enum-name); default Pending utk row lama (migrasi)
+            line.Property(entry => entry.AllocationStatus)
+                .HasConversion<string>().HasMaxLength(16).IsRequired().HasDefaultValue(OrderLineAllocationStatus.Pending);
         });
 
         builder.Navigation(o => o.OrderLines).UsePropertyAccessMode(PropertyAccessMode.Field);
