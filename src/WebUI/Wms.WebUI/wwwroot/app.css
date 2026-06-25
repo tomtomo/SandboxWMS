@@ -15,3 +15,67 @@
     right: 0.75rem;
     top: 0.5rem;
 }
+
+/* ── Soft theme polish ─────────────────────────────────────────────────────
+   Shadow lebih lembut + sudut membulat untuk paper, card, button, table,
+   chip, dan input. Melengkapi MudTheme di MainLayout.razor. */
+.mud-appbar {
+    box-shadow: 0 2px 10px rgba(80, 80, 140, 0.06) !important;
+    border-bottom: 1px solid rgba(120, 120, 160, 0.10);
+}
+
+.mud-drawer {
+    border-right: 1px solid rgba(120, 120, 160, 0.10);
+}
+
+.mud-elevation-1 {
+    box-shadow: 0 4px 14px rgba(80, 80, 140, 0.05) !important;
+}
+
+.mud-paper, .mud-card, .mud-table-container {
+    border-radius: 14px !important;
+}
+
+.mud-table {
+    box-shadow: 0 6px 20px rgba(80, 80, 140, 0.06) !important;
+    overflow: hidden;
+}
+
+.mud-table-head .mud-table-cell {
+    background-color: var(--mud-palette-primary-lighten);
+    color: var(--mud-palette-primary-darken);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.mud-table-row:hover > .mud-table-cell {
+    background-color: var(--mud-palette-primary-lighten) !important;
+}
+
+/* nav link aktif: pill lembut bertint primary */
+.mud-nav-link.active:not(.mud-nav-link-disabled) {
+    background-color: var(--mud-palette-primary-lighten);
+    color: var(--mud-palette-primary-darken);
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.mud-nav-link {
+    border-radius: 12px;
+    margin: 1px 6px;
+}
+
+.mud-button-root {
+    border-radius: 10px;
+    text-transform: none;
+    letter-spacing: 0.2px;
+}
+
+.mud-chip {
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.mud-input-outlined .mud-input-outlined-border {
+    border-radius: 10px;
+}
