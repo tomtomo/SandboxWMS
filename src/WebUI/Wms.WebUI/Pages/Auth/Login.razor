@@ -1,4 +1,5 @@
 @page "/"
+@implements IDisposable
 @inject WmsApiClient Api
 @inject TokenStore TokenStore
 @inject NavigationManager Nav
@@ -32,6 +33,15 @@ else
     private string _password = string.Empty;
     private bool _busy;
 
+    // What: subscribe perubahan TokenStore agar halaman ini re-render saat auth-state berubah.
+    // Why: Logout (MainLayout) memanggil TokenStore.Clear() lalu NavigateTo("/"). Bila user SUDAH di "/"
+    // (lihat alert "Login sebagai ..."), navigasi ke URL yang sama = no-op → page component tak re-render,
+    // alert stale bertahan & form login tak muncul (user tak bisa re-login tanpa reload). Subscribe OnChange
+    // (pola sama MainLayout) → Clear() men-trigger StateHasChanged → branch beralih ke form login.
+    protected override void OnInitialized() => TokenStore.OnChange += StateHasChanged;
+
+    public void Dispose() => TokenStore.OnChange -= StateHasChanged;
+
     private async Task DoLogin()
     {
         _busy = true;
@@ -48,7 +58,8 @@ else
         if (result.Success)
         {
             Snackbar.Add("Login sukses.", Severity.Success);
-            Nav.NavigateTo("/goods-receipts");
+            // landing netral pasca-login (Home blank) — bukan auto-buka /goods-receipts (konteks Inbound dipaksakan)
+            Nav.NavigateTo("/home");
         }
         else
         {

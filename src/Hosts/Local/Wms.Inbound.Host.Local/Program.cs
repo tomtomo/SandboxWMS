@@ -64,7 +64,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // CallCredentials (bearer+correlation) → UnsafeUseInsecureChannelCallCredentials agar terkirim di Local.
 builder.Services.AddGrpcResiliencePipeline();
 builder.Services.AddLocalServiceTokenProvider();
-builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("http://masterdata", "masterdata");
+builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("https://masterdata", "masterdata");
 builder.Services.AddMasterDataProductCatalog();
 
 var app = builder.Build();

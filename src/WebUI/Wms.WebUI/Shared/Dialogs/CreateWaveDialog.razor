@@ -2,45 +2,70 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 
-@* Create wave: pilih order. Order-list = gap → input order GUID manual (1 per baris). Saat G1 landing,
-   ganti jadi multi-select dari ListOrdersAsync(status=New). Stock allocation + PickingTask otomatis (event). *@
+@* Create Wave: pilih order status=New via multiselect (ListOrdersAsync) — gantikan paste order-GUID manual
+   (lookup, bukan input id). Stock allocation FEFO + PickingTask otomatis via event flow pasca-submit. *@
 <MudDialog>
     <DialogContent>
-        <div style="min-width:520px;">
-        <MudAlert Severity="Severity.Info" Class="mb-3">Setelah submit: stock allocation FEFO + PickingTask dibuat otomatis via event flow.</MudAlert>
-        <MudTextField @bind-Value="_orderIdsText" Label="Order IDs (GUID, 1 per baris)" Lines="6"
-                      Variant="Variant.Outlined" Class="mb-1"
-                      HelperText="Order-list belum tersedia — tempel order GUID, satu per baris." />
-        @if (_error is not null)
-        {
-            <MudText Typo="Typo.caption" Color="Color.Error">@_error</MudText>
-        }
+        <div style="min-width:600px;">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Eligible Orders (status=New)</MudText>
+            @if (_loading)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-3" />
+            }
+            else if (_eligible.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning">
+                    Tak ada order status=New. Buat order dulu di /outbound/orders.
+                </MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_eligible" Dense="true" Hover="true" T="OrderSummaryDto"
+                          MultiSelection="true" @bind-SelectedItems="_selected">
+                    <HeaderContent>
+                        <MudTh>Order</MudTh><MudTh>Customer</MudTh><MudTh>Ship To</MudTh><MudTh>Lines</MudTh><MudTh>Total Qty</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="row">
+                        <MudTd>@(row.OrderId.ToString()[..8])…</MudTd>
+                        <MudTd>@row.CustomerId</MudTd>
+                        <MudTd>@row.ShipTo</MudTd>
+                        <MudTd>@row.LineCount</MudTd>
+                        <MudTd>@row.TotalQty</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+            <MudAlert Severity="Severity.Info" Class="mt-3">Setelah submit: stock allocation FEFO + PickingTask dibuat otomatis via event flow.</MudAlert>
         </div>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Disabled="_busy">Batal</MudButton>
-        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy">@(_busy ? "..." : "Buat Wave")</MudButton>
+        <MudButton OnClick="HandleSubmit" Color="Color.Primary" Variant="Variant.Filled"
+                   Disabled="@(_busy || _selected.Count == 0)">@(_busy ? "..." : $"Buat Wave ({_selected.Count} order)")</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
-    private string _orderIdsText = "";
-    private string? _error;
+    private IReadOnlyList<OrderSummaryDto> _eligible = [];
+    private HashSet<OrderSummaryDto> _selected = new();
+    private bool _loading = true;
     private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.Outbound.ListOrdersAsync(1, 200, OutboundOrderStatus.New);
+        if (result.Success)
+            _eligible = result.Value!.Items;
+        _loading = false;
+    }
 
     private async Task HandleSubmit()
     {
-        _error = null;
-        var ids = new List<Guid>();
-        foreach (var line in _orderIdsText.Split(['\n', '\r', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (!Guid.TryParse(line, out var id)) { _error = $"GUID tak valid: {line}"; return; }
-            ids.Add(id);
-        }
-        if (ids.Count == 0) { _error = "Minimal 1 order ID."; return; }
+        if (_selected.Count == 0)
+            return;
 
         _busy = true;
+        var ids = _selected.Select(o => o.OrderId).ToList();
         var result = await Api.Outbound.CreateWaveAsync(ids);
         _busy = false;
         if (result.Success)
@@ -49,7 +74,10 @@
             Dialog.Close(DialogResult.Ok(true));
             Nav.NavigateTo($"/outbound/waves/{result.Value}");
         }
-        else Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+        else
+        {
+            Snackbar.Add($"Gagal: {result.ErrorMessage}", Severity.Error);
+        }
     }
 
     private void Cancel() => Dialog.Cancel();

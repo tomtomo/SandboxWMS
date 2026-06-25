@@ -32,6 +32,13 @@ public static class StockErrors
     public static readonly Error InvalidAllocation =
         Error.Conflict("stock.invalid_allocation", "hanya stock Available yang dapat dialokasi.");
 
+    // What: split alokasi parsial dengan quantity tak valid (≤0 atau ≥ qty stock) — Validation → 400
+    // Why: porsi PENUH (quantity == Quantity) pakai Allocate, bukan split; quantity ≤ 0 atau melebihi
+    // saldo lot melanggar invariant pembagian balance (konservasi). Beda dari NonPositiveQuantity (factory).
+    public static readonly Error InvalidSplitQuantity =
+        Error.Validation("stock.invalid_split_quantity",
+            "quantity split alokasi harus > 0 dan < quantity stock (porsi penuh pakai Allocate).");
+
     public static readonly Error InvalidPick =
         Error.Conflict("stock.invalid_pick", "hanya stock Allocated yang dapat dipick.");
 }

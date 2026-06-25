@@ -101,6 +101,95 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task WaveReleased_partial_line_splits_lot_and_keeps_remainder_available()
+    {
+        await using var sp = await BuildInventoryAsync();
+
+        // satu lot Available qty 100; order line minta 30 → HARUS split: 30 Allocated (stock baru) + 70 Available.
+        // Regression: sebelum fix consumer mengalokasi SELURUH lot (100) = over-allocation (konservasi bocor).
+        var lotId = await SeedAsync(sp, StockStatus.Available, "SKU-1", "B1", new DateOnly(2026, 12, 31), 100);
+
+        var waveId = Guid.NewGuid();
+        await DeliverWaveReleasedAsync(sp, Guid.NewGuid(),
+            new WaveReleasedV1(waveId, [new WaveLineV1(Guid.NewGuid(), "SKU-1", 30)]));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+        // lot asal tetap Available, qty berkurang ke 70 (sisa) — TAK terkunci seluruhnya
+        var remainder = await db.Stocks.SingleAsync(s => s.Id == new StockId(lotId));
+        Assert.Equal(StockStatus.Available, remainder.Status);
+        Assert.Equal(70, remainder.Quantity);
+        Assert.Null(remainder.AllocatedToWaveId);
+
+        // porsi teralokasi = Stock BARU qty 30 Allocated ke wave (atribut fisik identik)
+        var allocated = await db.Stocks.SingleAsync(s => s.Status == StockStatus.Allocated);
+        Assert.NotEqual(lotId, allocated.Id.Value);
+        Assert.Equal(30, allocated.Quantity);
+        Assert.Equal(waveId, allocated.AllocatedToWaveId);
+        Assert.Equal("B1", allocated.Batch);
+
+        // konservasi total SKU-1: 70 + 30 = 100 (tak ada unit bocor/ganda)
+        Assert.Equal(100, await db.Stocks.Where(s => s.Sku == "SKU-1").SumAsync(s => s.Quantity));
+
+        // StockAllocated emit Qty = 30 (porsi diminta) bukan 100 (qty lot) → PickingTask qty benar
+        var emitted = Assert.Single(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockAllocatedV1.LogicalName).ToListAsync());
+        var payload = JsonSerializer.Deserialize<StockAllocatedV1>(emitted.Payload)!;
+        var allocation = Assert.Single(payload.Allocations);
+        Assert.Equal(30, allocation.Qty);
+        Assert.Equal(allocated.Id.Value, allocation.StockId);
+    }
+
+    [Fact]
+    public async Task WaveReleased_spans_multiple_fefo_lots_then_splits_last()
+    {
+        await using var sp = await BuildInventoryAsync();
+
+        // dua lot SKU-1: A expiry-terdekat qty 100, B expiry-jauh qty 50. Order line 120 → FEFO:
+        // A habis dulu (100) lalu B di-SPLIT (20), sisa B 30 Available. Total teralokasi 120 (split benar).
+        var lotAId = await SeedAsync(sp, StockStatus.Available, "SKU-1", "B-EARLY", new DateOnly(2026, 6, 30), 100);
+        var lotBId = await SeedAsync(sp, StockStatus.Available, "SKU-1", "B-LATE", new DateOnly(2026, 12, 31), 50);
+
+        var waveId = Guid.NewGuid();
+        await DeliverWaveReleasedAsync(sp, Guid.NewGuid(),
+            new WaveReleasedV1(waveId, [new WaveLineV1(Guid.NewGuid(), "SKU-1", 120)]));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+        // lot A (expiry terdekat) dialokasi PENUH
+        var lotA = await db.Stocks.SingleAsync(s => s.Id == new StockId(lotAId));
+        Assert.Equal(StockStatus.Allocated, lotA.Status);
+        Assert.Equal(100, lotA.Quantity);
+        Assert.Equal(waveId, lotA.AllocatedToWaveId);
+
+        // lot B (expiry jauh) di-SPLIT: 30 sisa Available
+        var lotB = await db.Stocks.SingleAsync(s => s.Id == new StockId(lotBId));
+        Assert.Equal(StockStatus.Available, lotB.Status);
+        Assert.Equal(30, lotB.Quantity);
+
+        // porsi split lot B = stock BARU qty 20 Allocated, batch B-LATE
+        var splitAllocated = await db.Stocks.SingleAsync(
+            s => s.Status == StockStatus.Allocated && s.Batch == "B-LATE");
+        Assert.Equal(20, splitAllocated.Quantity);
+        Assert.Equal(waveId, splitAllocated.AllocatedToWaveId);
+
+        // total teralokasi = 120 (100 + 20); konservasi keseluruhan SKU-1 = 150 (100 + 50)
+        Assert.Equal(120, await db.Stocks.Where(s => s.Status == StockStatus.Allocated).SumAsync(s => s.Quantity));
+        Assert.Equal(150, await db.Stocks.Where(s => s.Sku == "SKU-1").SumAsync(s => s.Quantity));
+
+        // StockAllocated emit dua allocation: 100 (B-EARLY) + 20 (B-LATE) = 120
+        var emitted = Assert.Single(await db.Set<OutboxMessage>()
+            .Where(m => m.LogicalName == StockAllocatedV1.LogicalName).ToListAsync());
+        var payload = JsonSerializer.Deserialize<StockAllocatedV1>(emitted.Payload)!;
+        Assert.Equal(2, payload.Allocations.Count);
+        Assert.Equal(120, payload.Allocations.Sum(a => a.Qty));
+        Assert.Equal(100, payload.Allocations.Single(a => a.Batch == "B-EARLY").Qty);
+        Assert.Equal(20, payload.Allocations.Single(a => a.Batch == "B-LATE").Qty);
+    }
+
+    [Fact]
     public async Task PickingCompleted_transitions_allocated_to_picked_at_staging()
     {
         await using var sp = await BuildInventoryAsync();
