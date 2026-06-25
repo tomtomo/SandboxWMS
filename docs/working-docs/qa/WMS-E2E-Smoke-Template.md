@@ -1,7 +1,6 @@
 # WMS E2E Smoke Template (reusable)
 
-> **Tujuan:** smoke test CEPAT untuk memastikan fungsional WMS tetap OK setelah perubahan kode — bukan suite
-> exhaustive (lihat `WMS-E2E-Autonomous-Test.md` untuk yang lengkap). ~6 skenario menutup: fan-out lintas-service,
+> **Tujuan:** smoke test CEPAT untuk memastikan fungsional WMS tetap OK setelah perubahan kode. ~6 skenario menutup: fan-out lintas-service,
 > **FEFO split** (area paling rawan regresi), konservasi stok, QcHold/quarantine, discrepancy resolution.
 > Bukti dari **UI ter-render + snackbar MudBlazor + Aspire logs**. Discovery ID via REST = boleh.
 

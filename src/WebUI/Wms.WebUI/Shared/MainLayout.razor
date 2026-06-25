@@ -4,7 +4,7 @@
 @inject NavigationManager Nav
 @inject ProtectedLocalStorage Storage
 
-<MudThemeProvider />
+<MudThemeProvider Theme="_softTheme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -49,6 +49,51 @@
 
 @code {
     private bool _drawerOpen = true;
+
+    // ── Soft theme (Teal) ────────────────────────────────────────────────────
+    // Palet low-saturation + sudut membulat + shadow lembut. Ganti nilai Primary
+    // di sini untuk hue lain: Periwinkle #6D78DC, Rose #D67D9F, Sage #7FA876.
+    private readonly MudTheme _softTheme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary          = "#3FA89C",
+            PrimaryDarken    = "#2C857B",
+            PrimaryLighten   = "#E0F1EF",
+            Secondary        = "#8A5FB8",
+            Tertiary         = "#3FA89C",
+            Success          = "#2F8F6B",
+            Info             = "#3B7EB8",
+            Warning          = "#B5882F",
+            Error            = "#C25B5B",
+            Background       = "#F4F4FA",
+            BackgroundGray   = "#EFEFF6",
+            Surface          = "#FFFFFF",
+            AppbarBackground = "#FFFFFF",
+            AppbarText       = "#3A3A4D",
+            DrawerBackground = "#FFFFFF",
+            DrawerText       = "#5C5C72",
+            DrawerIcon       = "#9A9AB2",
+            TextPrimary      = "#34344A",
+            TextSecondary    = "#8A8AA0",
+            ActionDefault    = "#9A9AB2",
+            Divider          = "rgba(120,120,160,0.12)",
+            TableLines       = "rgba(120,120,160,0.10)",
+            LinesDefault     = "rgba(120,120,160,0.18)",
+            HoverOpacity     = 0.06,
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "12px",
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = new[] { "Roboto", "system-ui", "sans-serif" } },
+            H4      = new H4Typography      { FontWeight = "500" },
+            H5      = new H5Typography      { FontWeight = "500" },
+            H6      = new H6Typography      { FontWeight = "500" },
+        },
+    };
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
     protected override void OnInitialized() => TokenStore.OnChange += StateHasChanged;
