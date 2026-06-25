@@ -194,7 +194,7 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
     {
         await using var sp = await BuildInventoryAsync();
 
-        // hanya 4 unit Available; line minta 10 → 4 dialokasi + 6 SHORT (ADR-0034: emit StockAllocationFailed)
+        // hanya 4 unit Available; line minta 10 → 4 dialokasi + 6 SHORT (ADR-0034: emit StockAllocationShortfall)
         await SeedAsync(sp, StockStatus.Available, "SKU-1", "B1", new DateOnly(2026, 12, 31), 4);
 
         var waveId = Guid.NewGuid();
@@ -206,8 +206,8 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
         var emitted = Assert.Single(await db.Set<OutboxMessage>()
-            .Where(m => m.LogicalName == StockAllocationFailedV1.LogicalName).ToListAsync());
-        var payload = JsonSerializer.Deserialize<StockAllocationFailedV1>(emitted.Payload)!;
+            .Where(m => m.LogicalName == StockAllocationShortfallV1.LogicalName).ToListAsync());
+        var payload = JsonSerializer.Deserialize<StockAllocationShortfallV1>(emitted.Payload)!;
         Assert.Equal(waveId, payload.WaveId);
         var line = Assert.Single(payload.Lines);
         Assert.Equal(orderId, line.OrderId);
@@ -238,8 +238,8 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
         var emitted = Assert.Single(await db.Set<OutboxMessage>()
-            .Where(m => m.LogicalName == StockAllocationFailedV1.LogicalName).ToListAsync());
-        var line = Assert.Single(JsonSerializer.Deserialize<StockAllocationFailedV1>(emitted.Payload)!.Lines);
+            .Where(m => m.LogicalName == StockAllocationShortfallV1.LogicalName).ToListAsync());
+        var line = Assert.Single(JsonSerializer.Deserialize<StockAllocationShortfallV1>(emitted.Payload)!.Lines);
         Assert.Equal(7, line.RequestedQty);
         Assert.Equal(0, line.AllocatedQty);
         Assert.Equal(7, line.ShortQty);
@@ -257,7 +257,7 @@ public sealed class StockLifecycleConsumerTests(PostgresFixture fixture)
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
         Assert.Empty(await db.Set<OutboxMessage>()
-            .Where(m => m.LogicalName == StockAllocationFailedV1.LogicalName).ToListAsync());
+            .Where(m => m.LogicalName == StockAllocationShortfallV1.LogicalName).ToListAsync());
     }
 
     [Fact]

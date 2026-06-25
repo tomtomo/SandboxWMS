@@ -4,7 +4,7 @@ using Wms.BuildingBlocks.Infrastructure.Auditing;
 using Wms.BuildingBlocks.Infrastructure.DependencyInjection;
 using Wms.Outbound.Application.Abstractions;
 using Wms.Outbound.Application.Features.ConsumeStockAllocated;
-using Wms.Outbound.Application.Features.ConsumeStockAllocationFailed;
+using Wms.Outbound.Application.Features.ConsumeStockAllocationShortfall;
 using Wms.Outbound.Infrastructure.Messaging;
 using Wms.Outbound.Infrastructure.Persistence;
 
@@ -42,9 +42,9 @@ public static class OutboundInfrastructureExtensions
         services.AddScoped<IPickingTaskReader, PickingTaskReader>();
 
         // consumer integration-event (scoped per pesan; bukan MediatR handler) — StockAllocated (03c) +
-        // StockAllocationFailed (ADR-0034: tandai OrderLine Short/Backordered).
+        // StockAllocationShortfall (ADR-0034: tandai OrderLine Short/Backordered).
         services.AddScoped<StockAllocatedConsumer>();
-        services.AddScoped<StockAllocationFailedConsumer>();
+        services.AddScoped<StockAllocationShortfallConsumer>();
 
         services.AddSingleton<OutboundIntegrationEventDispatcher>();
         return services;

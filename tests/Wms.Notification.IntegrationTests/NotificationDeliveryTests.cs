@@ -160,21 +160,21 @@ public sealed class NotificationDeliveryTests(PostgresFixture fixture)
     }
 
     [Fact]
-    public async Task StockAllocationFailed_notifies_subscribers()
+    public async Task StockAllocationShortfall_notifies_subscribers()
     {
         await using var factory = await CreateFactoryAsync();
         // ADR-0034: event tak bawa warehouseId → subscribe lintas-warehouse (warehouseScope null)
         await SeedSubscriptionAsync(
             factory, SubscriberType.User, "spv-1",
-            StockAllocationFailedV1.LogicalName, [NotificationChannel.InApp], warehouseScope: null);
+            StockAllocationShortfallV1.LogicalName, [NotificationChannel.InApp], warehouseScope: null);
 
-        var message = new StockAllocationFailedV1(
-            Guid.NewGuid(), [new StockAllocationFailedLineV1(Guid.NewGuid(), "SKU-1", 10, 4, 6)]);
-        await InvokeStockAllocationFailedAsync(factory, Guid.NewGuid(), message);
+        var message = new StockAllocationShortfallV1(
+            Guid.NewGuid(), [new StockAllocationShortfallLineV1(Guid.NewGuid(), "SKU-1", 10, 4, 6)]);
+        await InvokeStockAllocationShortfallAsync(factory, Guid.NewGuid(), message);
 
         var delivery = await QueryAsync(factory, db => db.Deliveries.SingleAsync());
         Assert.Equal("spv-1", delivery.UserId);
-        Assert.Equal(StockAllocationFailedV1.LogicalName, delivery.EventType);
+        Assert.Equal(StockAllocationShortfallV1.LogicalName, delivery.EventType);
         Assert.Equal(NotificationChannel.InApp, delivery.Channel);
 
         Assert.Equal(1, await RunWorkerAsync(factory));   // worker dispatch → Sent
@@ -218,12 +218,12 @@ public sealed class NotificationDeliveryTests(PostgresFixture fixture)
         Assert.True(result.IsSuccess, result.IsFailure ? $"{result.Error.Code}: {result.Error.Message}" : null);
     }
 
-    private static async Task InvokeStockAllocationFailedAsync(
-        WebApplicationFactory<Program> factory, Guid eventId, StockAllocationFailedV1 message)
+    private static async Task InvokeStockAllocationShortfallAsync(
+        WebApplicationFactory<Program> factory, Guid eventId, StockAllocationShortfallV1 message)
     {
         using var scope = factory.Services.CreateScope();
         var result = await scope.ServiceProvider
-            .GetRequiredService<StockAllocationFailedNotifier>().HandleAsync(eventId, At, message);
+            .GetRequiredService<StockAllocationShortfallNotifier>().HandleAsync(eventId, At, message);
         Assert.True(result.IsSuccess, result.IsFailure ? $"{result.Error.Code}: {result.Error.Message}" : null);
     }
 

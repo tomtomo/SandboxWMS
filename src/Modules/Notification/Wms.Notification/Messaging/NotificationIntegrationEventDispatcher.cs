@@ -13,7 +13,7 @@ namespace Wms.Notification.Messaging;
 // Why: menerima MessageEnvelope dari rail (Local: InMemoryMessagePublisher; cloud: adapter broker), route
 // by LogicalName → notifier yang tepat. INILAH subscribe-point yang disambung adapter broker di Phase
 // 05d/06d (Notification profil serverless/Cloud Run push). Meng-consume TIGA event: gr_confirmed (Inbound) +
-// picking_completed (Outbound) + stock_allocation_failed (Inventory, ADR-0034: alert stock kurang untuk wave).
+// picking_completed (Outbound) + stock_allocation_shortfall (Inventory, ADR-0034: alert stock kurang untuk wave).
 // How: helper generik DispatchAsync<TMessage,THandler> — filter LogicalName → deserialize → buka scope
 // (handler + DbContext scoped per pesan) → HandleAsync(eventId, OccurredAt, msg) → throw bila Failure
 // (pipeline retry→DLQ ConsumerDeadLetterPipeline). OccurredAt diteruskan dari envelope (bukan wall-clock).
@@ -27,10 +27,10 @@ public sealed class NotificationIntegrationEventDispatcher(IServiceScopeFactory 
         => DispatchAsync<PickingCompletedV1, PickingCompletedNotifier>(
             envelope, PickingCompletedV1.LogicalName, (h, id, at, msg, ct) => h.HandleAsync(id, at, msg, ct), cancellationToken);
 
-    // ADR-0034: sinyal-gagal alokasi → alert subscriber (stock kurang untuk wave)
-    public Task HandleStockAllocationFailedAsync(MessageEnvelope envelope, CancellationToken cancellationToken = default)
-        => DispatchAsync<StockAllocationFailedV1, StockAllocationFailedNotifier>(
-            envelope, StockAllocationFailedV1.LogicalName, (h, id, at, msg, ct) => h.HandleAsync(id, at, msg, ct), cancellationToken);
+    // ADR-0034: sinyal kekurangan alokasi → alert subscriber (stock kurang untuk wave)
+    public Task HandleStockAllocationShortfallAsync(MessageEnvelope envelope, CancellationToken cancellationToken = default)
+        => DispatchAsync<StockAllocationShortfallV1, StockAllocationShortfallNotifier>(
+            envelope, StockAllocationShortfallV1.LogicalName, (h, id, at, msg, ct) => h.HandleAsync(id, at, msg, ct), cancellationToken);
 
     private async Task DispatchAsync<TMessage, THandler>(
         MessageEnvelope envelope,

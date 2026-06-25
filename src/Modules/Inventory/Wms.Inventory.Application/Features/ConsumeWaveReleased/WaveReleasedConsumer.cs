@@ -49,7 +49,7 @@ public sealed class WaveReleasedConsumer(
                     group.OrderBy(stock => stock.Expiry ?? DateOnly.MaxValue).ThenBy(stock => stock.Id.Value)));
 
         var allocations = new List<StockAllocationV1>();
-        var shortLines = new List<StockAllocationFailedLineV1>();
+        var shortLines = new List<StockAllocationShortfallLineV1>();
         foreach (var line in message.Lines)
         {
             // Akumulasi qty lintas batch FEFO sampai qty LINE terpenuhi (bukan sekadar ambil 1 lot utuh):
@@ -92,15 +92,16 @@ public sealed class WaveReleasedConsumer(
             // ADR-0034: line tak teralokasi penuh (stock kurang/nol) → catat short EKSPLISIT (ganti silent-drop).
             // allocatedQty + shortQty == requestedQty (konservasi). allocatedQty 0 = sama sekali tak ada stock.
             if (remaining > 0)
-                shortLines.Add(new StockAllocationFailedLineV1(
+                shortLines.Add(new StockAllocationShortfallLineV1(
                     line.OrderId, line.Sku, line.Qty, line.Qty - remaining, remaining));
         }
 
         outbox.Enqueue(ToEnvelope(message.WaveId, allocations));
-        // ADR-0034: emit sinyal-gagal HANYA bila ada line short (hindari event kosong) → Outbound tandai
-        // OrderLine Short/Backordered + Notification alert. Satu transaksi dgn alokasi + Inbox-mark.
+        // ADR-0034: emit sinyal kekurangan HANYA bila ada line short (hindari event kosong) → Outbound tandai
+        // OrderLine Short/Backordered + Notification alert. Mencakup parsial DAN nol-seluruhnya (yang nol juga
+        // memicu auto-cancel wave via StockAllocated kosong, ADR-0035). Satu transaksi dgn alokasi + Inbox-mark.
         if (shortLines.Count > 0)
-            outbox.Enqueue(ToFailedEnvelope(message.WaveId, shortLines));
+            outbox.Enqueue(ToShortfallEnvelope(message.WaveId, shortLines));
         inbox.MarkProcessed(eventId, HandlerType);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Success();
@@ -114,11 +115,12 @@ public sealed class WaveReleasedConsumer(
         return MessageEnvelope.For(StockAllocatedV1.LogicalName, payload);
     }
 
-    // What: Message Translator (EIP) — line short → StockAllocationFailed envelope (ADR-0034)
+    // What: Message Translator (EIP) — line short → StockAllocationShortfall envelope (ADR-0034)
     // How: EventId baru = identitas outbox/idempotency; konsumen (Outbound + Notification) dedup via Inbox.
-    private static MessageEnvelope ToFailedEnvelope(Guid waveId, IReadOnlyList<StockAllocationFailedLineV1> shortLines)
+    private static MessageEnvelope ToShortfallEnvelope(
+        Guid waveId, IReadOnlyList<StockAllocationShortfallLineV1> shortLines)
     {
-        var payload = new StockAllocationFailedV1(waveId, shortLines);
-        return MessageEnvelope.For(StockAllocationFailedV1.LogicalName, payload);
+        var payload = new StockAllocationShortfallV1(waveId, shortLines);
+        return MessageEnvelope.For(StockAllocationShortfallV1.LogicalName, payload);
     }
 }

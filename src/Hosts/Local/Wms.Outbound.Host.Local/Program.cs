@@ -10,7 +10,7 @@ using Wms.Outbound.Api;
 using Wms.Outbound.Application.Abstractions;
 using Wms.Outbound.Application.DependencyInjection;
 using Wms.Outbound.Application.Features.ConsumeStockAllocated;
-using Wms.Outbound.Application.Features.ConsumeStockAllocationFailed;
+using Wms.Outbound.Application.Features.ConsumeStockAllocationShortfall;
 using Wms.Outbound.Infrastructure.DependencyInjection;
 using Wms.Outbound.Infrastructure.MasterData;
 using Wms.Outbound.Infrastructure.Messaging;
@@ -88,7 +88,7 @@ var deadLettering = app.Services.GetRequiredService<ConsumerDeadLetterPipeline>(
 subscriber.Subscribe(deadLettering.Wrap(
     StockAllocatedConsumer.HandlerType, dispatcher.HandleStockAllocatedAsync));
 subscriber.Subscribe(deadLettering.Wrap(
-    StockAllocationFailedConsumer.HandlerType, dispatcher.HandleStockAllocationFailedAsync));
+    StockAllocationShortfallConsumer.HandlerType, dispatcher.HandleStockAllocationShortfallAsync));
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => "Wms.Outbound.Host.Local — Phase 03c (OutboundOrder/Wave/PickingTask + 3 event emit + StockAllocated consumer)");

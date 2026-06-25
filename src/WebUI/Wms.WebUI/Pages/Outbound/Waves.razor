@@ -65,5 +65,5 @@
     }
 
     private static Color WaveColor(string s) => s switch
-    { "Active" => Color.Info, "Ready" => Color.Warning, "Dispatched" => Color.Success, _ => Color.Default };
+    { "Active" => Color.Info, "Ready" => Color.Warning, "Dispatched" => Color.Success, "Cancelled" => Color.Error, _ => Color.Default };
 }

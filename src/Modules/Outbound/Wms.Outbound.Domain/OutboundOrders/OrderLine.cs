@@ -33,6 +33,11 @@ public sealed class OrderLine
             AllocationStatus = OrderLineAllocationStatus.Allocated;
     }
 
-    // What: tandai short/backorder (StockAllocationFailed) — selalu menang (line butuh perhatian). Idempotent.
+    // What: tandai short/backorder (StockAllocationShortfall) — selalu menang (line butuh perhatian). Idempotent.
     internal void MarkShort() => AllocationStatus = OrderLineAllocationStatus.Short;
+
+    // What: reset status alokasi ke Pending (ADR-0035) — dipanggil saat order (re-)masuk wave
+    // Why: tiap attempt wave = state alokasi bersih; cegah status Short attempt lama menetap (mis. line yang
+    // dulu Short lalu di-wave ulang & kini penuh harus jadi Allocated, bukan tertahan Short).
+    internal void ResetAllocation() => AllocationStatus = OrderLineAllocationStatus.Pending;
 }

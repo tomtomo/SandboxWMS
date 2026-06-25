@@ -77,8 +77,27 @@ public sealed class OutboundOrder : AuditableAggregateRoot<OutboundOrderId>
         if (Status != OutboundOrderStatus.New)
             return Result.Failure(OutboundOrderErrors.InvalidWaveAssignment);
 
+        // ADR-0035: tiap attempt wave = state alokasi line bersih (reset hint Short dari attempt sebelumnya)
+        foreach (var line in _orderLines)
+            line.ResetAllocation();
+
         WaveId = waveId;
         Status = OutboundOrderStatus.InProgress;
+        return Result.Success();
+    }
+
+    // What: transisi InProgress → New — lepas dari wave yang di-cancel, balik ke backlog (ADR-0035)
+    // Why: wave nol-terpenuhi (stock nol) auto-bubar; order-nya TIDAK dibatalkan mati (auto-refuse customer =
+    // footgun, "no stock now ≠ no stock ever") melainkan dikembalikan ke antrian agar bisa di-wave ulang saat
+    // stock tiba. WaveId di-clear. Line status TAK di-reset di sini (jadi hint attempt terakhir); reset terjadi
+    // saat PlaceInWave attempt berikutnya. No-op aman bila bukan InProgress (idempoten vs re-delivery).
+    public Result ReleaseFromWave()
+    {
+        if (Status != OutboundOrderStatus.InProgress)
+            return Result.Failure(OutboundOrderErrors.InvalidWaveAssignment);
+
+        WaveId = null;
+        Status = OutboundOrderStatus.New;
         return Result.Success();
     }
 
@@ -93,7 +112,7 @@ public sealed class OutboundOrder : AuditableAggregateRoot<OutboundOrderId>
         return Result.Success();
     }
 
-    // What: tandai status alokasi sebuah line (ADR-0034) — dipicu consumer StockAllocated/StockAllocationFailed.
+    // What: tandai status alokasi sebuah line (ADR-0034) — dipicu consumer StockAllocated/StockAllocationShortfall.
     // Why: aggregate = satu-satunya entry point mutasi line; presedensi Short>Allocated dijaga OrderLine. No-op
     // bila sku tak ada (idempotent + defensif vs payload tak sinkron) — tak melanggar invariant, tak butuh Result.
     public void MarkLineAllocated(string sku) => LineFor(sku)?.MarkAllocated();

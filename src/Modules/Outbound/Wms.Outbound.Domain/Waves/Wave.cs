@@ -69,6 +69,20 @@ public sealed class Wave : AuditableAggregateRoot<WaveId>
         return Result.Success();
     }
 
+    // What: transisi Active → Cancelled — wave nol-terpenuhi (stock nol), auto-bubar (ADR-0035) — terminal
+    // Why: wave yang tak dapat alokasi sama sekali (0 PickingTask) tak punya jalan ke Ready (MarkReady butuh
+    // task) → akan menggantung. Cancel membubarkannya; order-nya dilepas balik ke backlog oleh handler (di
+    // luar aggregate ini). Guard: hanya Active + NOL task (wave yang sudah punya task sedang dipenuhi, tak
+    // boleh dibubarkan). Nol alokasi = nol Stock ter-reservasi → tak ada yang perlu di-release.
+    public Result Cancel()
+    {
+        if (Status != WaveStatus.Active || _pickingTaskIds.Count != 0)
+            return Result.Failure(WaveErrors.InvalidCancel);
+
+        Status = WaveStatus.Cancelled;
+        return Result.Success();
+    }
+
     // What: transisi Ready → Dispatched + emission (overview §C6, ADR-0026) — terminal
     // Why: SPV eksekusi dispatch (truk keluar); raise ShipmentDispatched agar Inventory remove Stock Picked.
     // Event hanya di-raise pada fakta sukses — guard gagal = Conflict tanpa emit.

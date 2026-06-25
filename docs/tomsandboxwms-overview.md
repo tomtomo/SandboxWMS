@@ -127,7 +127,7 @@ SPV buka GoodsReceipt, lihat ringkasan expected vs actual dan daftar discrepancy
 | Event | Pemancar | Penerima | Payload inti | Efek di penerima |
 |---|---|---|---|---|
 | `StockAllocated` | Inventory | Outbound | `waveId`, `allocations[]: { orderId, sku, locationId, batch, qty, stockId }` | Create `PickingTask` per entry; tandai `OrderLine.allocationStatus = Allocated` (via orderId). |
-| `StockAllocationFailed` | Inventory | Outbound, Notification | `waveId`, `lines[]: { orderId, sku, requestedQty, allocatedQty, shortQty }` | Outbound: tandai `OrderLine.allocationStatus = Short`/Backordered. Notification: alert stock short. |
+| `StockAllocationShortfall` | Inventory | Outbound, Notification | `waveId`, `lines[]: { orderId, sku, requestedQty, allocatedQty, shortQty }` | Outbound: tandai `OrderLine.allocationStatus = Short`/Backordered. Notification: alert stock short. |
 | `PutawayCompleted` | Inventory | Reporting | `putawayTaskId`, `stockId`, `sku`, `warehouseId`, `operatorId?` | `OperatorActivity` putaway-count per operator/hari. Di-emit saat `PutawayTask` Assigned→Completed (B2). |
 | `StockRemoved` | Inventory | Reporting | `waveId`, `lines[]: { warehouseId, sku, batch?, qty }` | `StockOnHandView` decrement + `DispatchSummary` (count + volume). Di-emit saat Inventory consume `ShipmentDispatched` lalu hapus Stock `Picked` (C6) — data milik Inventory yang `ShipmentDispatched` (cuma `waveId`) tak punya. |
 
@@ -180,7 +180,7 @@ Operator scan stock di receiving area, sistem tampilkan suggested destination. O
 #### Implikasi ke modul lain
 
 1. **QC release flow** (`Quarantine → OnHand`) belum di-scope. Saat di-scope nanti, kemungkinan butuh aggregate baru (`QCInspection`) di modul terpisah.
-2. **Allocation failure** — jika stock `Available` tak cukup memenuhi `WaveReleased`, sistem **partial-allocate** (alokasi sebisanya, FEFO) lalu memancarkan event eksplisit **`StockAllocationFailed`** untuk sisa yang short (per line: `requestedQty`/`allocatedQty`/`shortQty`) → Outbound tandai `OrderLine` Short/Backordered + Notification alert. **Bukan** sync ATP-gate di order-entry, **bukan** reject seluruh wave. (Backorder auto re-allocation saat restock = deferred.)
+2. **Allocation failure** — jika stock `Available` tak cukup memenuhi `WaveReleased`, sistem **partial-allocate** (alokasi sebisanya, FEFO) lalu memancarkan event eksplisit **`StockAllocationShortfall`** untuk sisa yang short (per line: `requestedQty`/`allocatedQty`/`shortQty`) → Outbound tandai `OrderLine` Short/Backordered + Notification alert. **Bukan** sync ATP-gate di order-entry, **bukan** reject seluruh wave. Bila wave **nol-terpenuhi seluruhnya** (tak ada line dapat stock): wave **auto-cancel** (`Active→Cancelled`) + order dilepas balik ke backlog (`InProgress→New`, re-waveable) — cegah wave/order menggantung (ADR-0035). (Backorder auto re-allocation saat restock = deferred.)
 3. **Putaway strategy** (chaotic vs fixed vs ABC) di-treat sebagai konfigurasi internal modul Inventory, tidak terlihat dari luar.
 
 ---
@@ -190,7 +190,7 @@ Operator scan stock di receiving area, sistem tampilkan suggested destination. O
 | Aggregate | Definisi |
 |---|---|
 | `OutboundOrder` (state: New, InProgress, Closed) | Order pengiriman dari customer, multi-SKU |
-| `Wave` (state: Active, Ready, Dispatched) | Grouping OutboundOrder yang diproses dan di-dispatch bersama |
+| `Wave` (state: Active, Ready, Dispatched, Cancelled) | Grouping OutboundOrder yang diproses dan di-dispatch bersama. `Cancelled` = wave nol-terpenuhi (stock nol) auto-bubar, order balik backlog (ADR-0035) |
 | `PickingTask` (state: Assigned, Completed) | Tugas mengambil stock dari satu lokasi rak ke staging area |
 
 | Event | Pemancar | Penerima | Payload inti | Efek di penerima |
@@ -246,7 +246,7 @@ SPV pilih beberapa OutboundOrder yang akan diproses bersama → buat Wave. Tiap 
 Inventory menerima `WaveReleased`. Untuk setiap line, sistem cari Stock dengan state `Available` sesuai allocation strategy (default FEFO — pick batch dengan expiry terdekat). Stock di-mark Allocated ke wave ini. Inventory emit `StockAllocated` dengan detail per-alokasi (sku, locationId, batch, qty, stockId) untuk qty yang berhasil.
 `Stock: Available → Allocated`
 
-Bila stock `Available` **tak cukup** (`requestedQty > allocatedQty`), line itu **short**: Inventory alokasi sebisanya lalu memancarkan **`StockAllocationFailed`** untuk sisa (per line: `orderId`, `sku`, `requestedQty`, `allocatedQty`, `shortQty`). Outbound consume → `OrderLine.allocationStatus → Short`/Backordered; Notification consume → alert. Sisa demand tak hilang senyap; stock yang tak terpakai tetap `Available`.
+Bila stock `Available` **tak cukup** (`requestedQty > allocatedQty`), line itu **short**: Inventory alokasi sebisanya lalu memancarkan **`StockAllocationShortfall`** untuk sisa (per line: `orderId`, `sku`, `requestedQty`, `allocatedQty`, `shortQty`). Outbound consume → `OrderLine.allocationStatus → Short`/Backordered; Notification consume → alert. Sisa demand tak hilang senyap; stock yang tak terpakai tetap `Available`. Bila **seluruh** line wave nol-teralokasi, `StockAllocated` kosong memicu **auto-cancel** wave + return order ke backlog (`InProgress→New`), bukan menggantung (ADR-0035).
 
 **C4 · Outbound buat PickingTask;**
 Outbound menerima `StockAllocated`. Untuk setiap entry `allocations[]`, sistem create PickingTask dan assign ke operator. `pickingTaskIds[]` di Wave terisi.

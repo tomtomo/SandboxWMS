@@ -5,7 +5,7 @@ namespace Wms.WebUI.Services;
 // What: DTO + form Outbound (M4). Enum 0-based (current; EF persist STRING). RESPONSE field enum = STRING
 // (map ke enum via NAMA). Form & payload TIDAK kirim WarehouseId/Uom/ActualQty (stripped vs legacy).
 public enum OutboundOrderStatus { New = 0, InProgress = 1, Closed = 2 }
-public enum WaveStatus { Active = 0, Ready = 1, Dispatched = 2 }
+public enum WaveStatus { Active = 0, Ready = 1, Dispatched = 2, Cancelled = 3 }
 public enum PickingTaskStatus { Assigned = 0, Completed = 1 }
 
 public sealed record OrderSummaryDto(Guid OrderId, string CustomerId, string ShipTo, string Status, int LineCount, int TotalQty);
