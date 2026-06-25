@@ -72,7 +72,7 @@ subscriber.Subscribe(deadLettering.Wrap(
 subscriber.Subscribe(deadLettering.Wrap(
     PickingCompletedNotifier.HandlerType, dispatcher.HandlePickingCompletedAsync));
 subscriber.Subscribe(deadLettering.Wrap(
-    StockAllocationFailedNotifier.HandlerType, dispatcher.HandleStockAllocationFailedAsync));
+    StockAllocationShortfallNotifier.HandlerType, dispatcher.HandleStockAllocationShortfallAsync));
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => "Wms.Notification.Host.Local — Phase 04d (async delivery + idempotency + retry/DLQ)");

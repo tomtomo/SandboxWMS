@@ -33,7 +33,7 @@ public static class NotificationExtensions
         services.AddScoped<NotificationEnqueuer>();
         services.AddScoped<GoodsReceiptConfirmedNotifier>();
         services.AddScoped<PickingCompletedNotifier>();
-        services.AddScoped<StockAllocationFailedNotifier>();   // ADR-0034
+        services.AddScoped<StockAllocationShortfallNotifier>();   // ADR-0034
         services.AddSingleton<NotificationIntegrationEventDispatcher>();
 
         // What: worker async (BackgroundService) — singleton + hosted service

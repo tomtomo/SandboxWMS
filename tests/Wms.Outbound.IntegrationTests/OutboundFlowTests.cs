@@ -9,7 +9,7 @@ using Wms.Inventory.Contracts;
 using Wms.Outbound.Application.DependencyInjection;
 using Wms.Outbound.Application.Features.CompletePicking;
 using Wms.Outbound.Application.Features.ConsumeStockAllocated;
-using Wms.Outbound.Application.Features.ConsumeStockAllocationFailed;
+using Wms.Outbound.Application.Features.ConsumeStockAllocationShortfall;
 using Wms.Outbound.Application.Features.CreateWave;
 using Wms.Outbound.Application.Features.DispatchWave;
 using Wms.Outbound.Application.Features.ReceiveOutboundOrder;
@@ -172,14 +172,14 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
     }
 
     [Fact]
-    public async Task StockAllocationFailed_marks_order_line_short()
+    public async Task StockAllocationShortfall_marks_order_line_short()
     {
         await using var sp = await BuildOutboundAsync();
         var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
 
-        // ADR-0034: zero-stock line → StockAllocationFailed → OrderLine ditandai Short (bukan silent-drop)
-        await DeliverStockAllocationFailedAsync(sp, Guid.NewGuid(), new StockAllocationFailedV1(
-            waveId, [new StockAllocationFailedLineV1(orderId, "SKU-1", 10, 0, 10)]));
+        // ADR-0034: zero-stock line → StockAllocationShortfall → OrderLine ditandai Short (bukan silent-drop)
+        await DeliverStockAllocationShortfallAsync(sp, Guid.NewGuid(), new StockAllocationShortfallV1(
+            waveId, [new StockAllocationShortfallLineV1(orderId, "SKU-1", 10, 0, 10)]));
 
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboundDbContext>();
@@ -193,16 +193,60 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
         await using var sp = await BuildOutboundAsync();
         var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
 
-        // teralokasi sebagian: StockAllocated qty 7 + StockAllocationFailed short 3 → Short MENANG atas Allocated
+        // teralokasi sebagian: StockAllocated qty 7 + StockAllocationShortfall short 3 → Short MENANG atas Allocated
         await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(
             waveId, [new StockAllocationV1(orderId, "SKU-1", "RACK-A1", "B1", 7, Guid.NewGuid())]));
-        await DeliverStockAllocationFailedAsync(sp, Guid.NewGuid(), new StockAllocationFailedV1(
-            waveId, [new StockAllocationFailedLineV1(orderId, "SKU-1", 10, 7, 3)]));
+        await DeliverStockAllocationShortfallAsync(sp, Guid.NewGuid(), new StockAllocationShortfallV1(
+            waveId, [new StockAllocationShortfallLineV1(orderId, "SKU-1", 10, 7, 3)]));
 
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboundDbContext>();
         var order = await db.OutboundOrders.SingleAsync(o => o.Id == new OutboundOrderId(orderId));
         Assert.Equal(OrderLineAllocationStatus.Short, order.OrderLines.Single().AllocationStatus);
+    }
+
+    [Fact]
+    public async Task StockAllocated_empty_cancels_wave_and_returns_orders_to_backlog()
+    {
+        await using var sp = await BuildOutboundAsync();
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
+
+        // ADR-0035: alokasi nol (stock nol) → StockAllocated KOSONG → wave Cancelled + order balik backlog (New)
+        await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(waveId, []));
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OutboundDbContext>();
+
+        var wave = await db.Waves.SingleAsync();
+        Assert.Equal(WaveStatus.Cancelled, wave.Status);          // bukan menggantung Active
+        Assert.Empty(wave.PickingTaskIds);
+        Assert.Equal(0, await db.PickingTasks.CountAsync());
+
+        var order = await db.OutboundOrders.SingleAsync(o => o.Id == new OutboundOrderId(orderId));
+        Assert.Equal(OutboundOrderStatus.New, order.Status);      // balik backlog, BUKAN Closed/cancel mati
+        Assert.Null(order.WaveId);                                // re-waveable saat stock tiba
+    }
+
+    [Fact]
+    public async Task Rewaving_released_order_resets_line_allocation_status()
+    {
+        await using var sp = await BuildOutboundAsync();
+        var (orderId, waveId) = await SetupWaveAsync(sp, ("SKU-1", 10));
+
+        // attempt 1: line short → ditandai Short, lalu wave nol → cancel + order balik New
+        await DeliverStockAllocationShortfallAsync(sp, Guid.NewGuid(), new StockAllocationShortfallV1(
+            waveId, [new StockAllocationShortfallLineV1(orderId, "SKU-1", 10, 0, 10)]));
+        await DeliverStockAllocatedAsync(sp, Guid.NewGuid(), new StockAllocatedV1(waveId, []));
+
+        // re-wave order yang sama → PlaceInWave RESET line ke Pending (ADR-0035), bukan tertahan Short
+        var waveId2 = (await SendAsync(sp, new CreateWaveCommand([orderId]))).Value;
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OutboundDbContext>();
+        var order = await db.OutboundOrders.SingleAsync(o => o.Id == new OutboundOrderId(orderId));
+        Assert.Equal(OutboundOrderStatus.InProgress, order.Status);
+        Assert.Equal(waveId2, order.WaveId);
+        Assert.Equal(OrderLineAllocationStatus.Pending, order.OrderLines.Single().AllocationStatus);
     }
 
     // ---- harness ----
@@ -249,12 +293,12 @@ public sealed class OutboundFlowTests(PostgresFixture fixture)
         Assert.True(result.IsSuccess, result.IsFailure ? $"{result.Error.Code}: {result.Error.Message}" : null);
     }
 
-    private static async Task DeliverStockAllocationFailedAsync(
-        ServiceProvider sp, Guid eventId, StockAllocationFailedV1 message)
+    private static async Task DeliverStockAllocationShortfallAsync(
+        ServiceProvider sp, Guid eventId, StockAllocationShortfallV1 message)
     {
         using var scope = sp.CreateScope();
         var result = await scope.ServiceProvider
-            .GetRequiredService<StockAllocationFailedConsumer>().HandleAsync(eventId, message);
+            .GetRequiredService<StockAllocationShortfallConsumer>().HandleAsync(eventId, message);
         Assert.True(result.IsSuccess, result.IsFailure ? $"{result.Error.Code}: {result.Error.Message}" : null);
     }
 

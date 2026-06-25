@@ -55,3 +55,8 @@ Keputusan dibutuhkan: bagaimana menangani shortfall **tanpa** melanggar no-sync-
 - **Reservation-at-order** & **ATP projection / customer-facing availability** — tetap out of scope (order capture ≠ supply matching).
 - **Semantik order-completion saat masih ada line Short** (apakah order `Closed` parsial, atau tetap terbuka menunggu backorder) — diputuskan saat backorder lifecycle di-scope.
 - **Wave reschedule/cancel** (release `Allocated→Available`) — tetap out of scope (overview §C #2).
+
+## Amendment — 2026-06-25 (via ADR-0035)
+
+- **Rename event:** `StockAllocationFailedV1` → **`StockAllocationShortfallV1`** (`StockAllocationFailedLineV1` → `StockAllocationShortfallLineV1`); LogicalName `inventory.stock_allocation_failed.v1` → **`inventory.stock_allocation_shortfall.v1`**. Alasan: nama "Shortfall" (selisih kurang) akurat untuk line nol **dan** parsial; "Failed" terkesan total, "Partial" mengecualikan line yang dapat 0. Selaras vocab `OrderLine.AllocationStatus.Short`/`ShortQty`. Prosa keputusan asli tak berubah (kontrak sama, hanya nama). Non-breaking: belum ter-commit/ter-deploy saat rename.
+- **Wave nol-seluruhnya kini punya jalan keluar** ([ADR-0035](0035-auto-cancel-unfulfillable-wave.md)): `StockAllocated` kosong → auto-cancel wave + return order ke backlog. Event shortfall TETAP menyala untuk wave nol (tiap line allocated 0) → sekaligus jadi notifikasi cancel (nol event broker baru).

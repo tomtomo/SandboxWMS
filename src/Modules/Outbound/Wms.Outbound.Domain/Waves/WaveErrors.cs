@@ -23,4 +23,10 @@ public static class WaveErrors
 
     public static readonly Error InvalidDispatch =
         Error.Conflict("wave.invalid_dispatch", "hanya wave Ready yang dapat didispatch.");
+
+    // What: guard auto-cancel wave nol-terpenuhi (ADR-0035)
+    // Why: cancel hanya legal saat Active TANPA picking task (wave yang sudah punya task = sedang dipenuhi,
+    // tak boleh dibubarkan otomatis). Conflict (409) bila dilanggar.
+    public static readonly Error InvalidCancel =
+        Error.Conflict("wave.invalid_cancel", "hanya wave Active tanpa picking task yang dapat di-cancel.");
 }
