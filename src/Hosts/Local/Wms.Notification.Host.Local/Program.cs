@@ -46,8 +46,8 @@ builder.Services.AddLocalNotificationChannels();
 // UnsafeUseInsecureChannelCallCredentials agar metadata terkirim di Local. Adapter directory di-wire host.
 builder.Services.AddGrpcResiliencePipeline();
 builder.Services.AddLocalServiceTokenProvider();
-builder.Services.AddWmsInternalGrpcClient<AuthReadApi.AuthReadApiClient>("http://auth", "auth");
-builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("http://masterdata", "masterdata");
+builder.Services.AddWmsInternalGrpcClient<AuthReadApi.AuthReadApiClient>("https://auth", "auth");
+builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("https://masterdata", "masterdata");
 builder.Services.AddNotificationDirectories();
 
 // REST terima enum (SubscriberType/NotificationChannel) sebagai NAMA, bukan angka

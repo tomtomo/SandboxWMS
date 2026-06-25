@@ -113,6 +113,34 @@ public sealed class Stock : AuditableAggregateRoot<StockId>
         return Result.Success();
     }
 
+    // What: SPLIT alokasi PARSIAL (overview §C3, FEFO split) — pisahkan `quantity` unit jadi Stock BARU
+    // ber-state Allocated ke wave, sisakan (Quantity − quantity) di stock ini (TETAP Available).
+    // Why: order line < qty lot → mengalokasi SELURUH lot = over-allocation (mengunci stok yang TAK dipesan;
+    // melanggar konservasi & memblok wave lain). Stock = balance per (sku,location,batch); membaginya
+    // melahirkan aggregate baru (id sendiri) supaya HANYA porsi teralokasi yang mengalir ke picking/dispatch,
+    // sisa tetap Available untuk alokasi berikutnya. Saudara dari Allocate (porsi PENUH); split = porsi PARSIAL.
+    // How: guard Available + 0 < quantity < Quantity (quantity == Quantity → pakai Allocate, BUKAN split).
+    // Kurangi Quantity lot ini; bentuk Stock baru (atribut fisik identik: warehouse/sku/location/batch/expiry/
+    // sourceGR) langsung di state Allocated + terikat wave. created_by=SYSTEM distempel saat persist (IAuditable,
+    // entity Added). Konservasi: Quantity_lama = Quantity_sisa + quantity_teralokasi (tak ada unit bocor/ganda).
+    public Result<Stock> SplitForAllocation(StockId newStockId, int quantity, Guid waveId)
+    {
+        if (Status != StockStatus.Available)
+            return Result.Failure<Stock>(StockErrors.InvalidAllocation);
+        if (quantity <= 0 || quantity >= Quantity)
+            return Result.Failure<Stock>(StockErrors.InvalidSplitQuantity);
+
+        Quantity -= quantity;
+
+        var allocated = new Stock(
+            newStockId, WarehouseId, Sku, LocationId, Batch, Expiry, quantity, SourceGoodsReceiptId,
+            StockStatus.Allocated)
+        {
+            AllocatedToWaveId = waveId,
+        };
+        return Result.Success(allocated);
+    }
+
     // What: koreksi manual kuantitas (set absolut → newQty), DI LUAR siklus receive→pick overview §B
     // Why: balance fisik bisa menyimpang dari sistem (cycle count, kerusakan, salah-hitung) → operator
     // mengoreksi langsung. SENGAJA minimal: tak ada guard state (berlaku di state apa pun) & tak meng-emit

@@ -66,7 +66,7 @@ builder.Services.AddWmsJwtBearer();
 // stub). Address via Aspire service discovery ("masterdata"); h2c insecure + CallCredentials.
 builder.Services.AddGrpcResiliencePipeline();
 builder.Services.AddLocalServiceTokenProvider();
-builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("http://masterdata", "masterdata");
+builder.Services.AddWmsInternalGrpcClient<MasterDataReadApi.MasterDataReadApiClient>("https://masterdata", "masterdata");
 builder.Services.AddMasterDataLocationCatalog();
 
 var app = builder.Build();

@@ -73,9 +73,12 @@ public sealed class CoreFlowE2ETests(PostgresFixture fixture)
         Assert.Equal(OutboundOrderStatus.Closed, await chain.OrderStatusAsync(orderA));
         Assert.Equal(OutboundOrderStatus.Closed, await chain.OrderStatusAsync(orderB));
 
-        // 8) relay ShipmentDispatched → Inventory remove Stock Picked → loop tertutup
-        Assert.Equal(1, await chain.DrainOutboundAsync());                  // satu ShipmentDispatched ter-publish
-        Assert.Equal(0, await chain.InventoryStockCountAsync());            // stok keluar gudang (removed)
+        // 8) relay ShipmentDispatched → Inventory remove Stock Picked (yang ter-ship) → loop tertutup.
+        // SKU-1 (order 10 = stock 10) ter-ship PENUH; SKU-2 (order 5 < stock 10) → FEFO split: 5 ter-ship +
+        // 5 SISA tetap Available (konservasi — stok tak dipesan TAK ikut terkunci/ter-ship). Picked removed, sisa bertahan.
+        Assert.Equal(1, await chain.DrainOutboundAsync());                            // satu ShipmentDispatched ter-publish
+        Assert.Equal(0, await chain.InventoryStockCountAsync(StockStatus.Picked));    // semua Picked ter-ship → removed
+        Assert.Equal(1, await chain.InventoryStockCountAsync(StockStatus.Available)); // sisa split SKU-2 (5) bertahan
     }
 
     // What: harness E2E — dua "service" (provider) + broker in-proc bersama (mirror WalkingSkeletonChainTests)

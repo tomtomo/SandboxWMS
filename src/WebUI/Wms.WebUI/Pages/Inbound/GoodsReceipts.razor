@@ -17,20 +17,45 @@ else
         <MudItem xs="12" md="5">
             <MudPaper Class="pa-4">
                 <MudText Typo="Typo.h6" GutterBottom="true">Create GR</MudText>
-                <MudTextField @bind-Value="_warehouseId" Label="Warehouse Id" Variant="Variant.Outlined" Class="mb-2" />
+                @* Warehouse picker (gantikan free-text default "WH1"): WH1 bukan GUID valid → consumer GRConfirmed
+                   me-resolve lokasi default via Guid.TryParse → Guid.Empty → NotFound → DLQ (no Stock/PutawayTask
+                   senyap). MudSelect ber-bind ke GUID warehouse nyata = mustahil submit id invalid. *@
+                @if (_warehouses.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                        Belum ada warehouse. Buat dulu di Master Data → Warehouses sebelum bikin GR.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudSelect T="Guid" @bind-Value="_warehouseId" Label="Warehouse" Variant="Variant.Outlined" Class="mb-2">
+                        @foreach (var wh in _warehouses)
+                        {
+                            <MudSelectItem T="Guid" Value="@wh.WarehouseId">@wh.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
                 <MudTextField @bind-Value="_poRef" Label="PO Ref (optional)" Variant="Variant.Outlined" Class="mb-2" />
                 <MudTextField @bind-Value="_supplierId" Label="Supplier Id (optional)" Variant="Variant.Outlined" Class="mb-2" />
                 <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Expected Lines</MudText>
+                @* SKU = product dropdown (ListProducts) — gantikan free-text yang rawan typo → SKU tak ada.
+                   UOM read-only auto dari product master (backend tetap meng-enrich; display saja di sini). *@
                 @foreach (var line in _lines)
                 {
-                    <div class="d-flex gap-3 mb-2">
-                        <MudTextField @bind-Value="line.Sku" Label="SKU" Variant="Variant.Outlined" />
-                        <MudNumericField @bind-Value="line.ExpectedQty" Label="Qty" Variant="Variant.Outlined" Min="1" />
+                    <div class="d-flex gap-3 mb-2 align-center">
+                        <MudSelect T="string" @bind-Value="line.Sku" Label="SKU" Variant="Variant.Outlined" Dense="true" Style="min-width:170px;">
+                            @foreach (var p in _products)
+                            {
+                                <MudSelectItem T="string" Value="@p.Sku">@p.Sku — @p.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudNumericField @bind-Value="line.ExpectedQty" Label="Qty" Variant="Variant.Outlined" Min="1" Style="max-width:100px;" />
+                        <MudTextField Value="@UomFor(line.Sku)" Label="UOM" Variant="Variant.Outlined" ReadOnly="true" Disabled="true" Style="max-width:100px;" />
                     </div>
                 }
                 <MudButton StartIcon="@Icons.Material.Filled.Add" OnClick="AddLine" Size="Size.Small">Add line</MudButton>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
-                           OnClick="Create" Disabled="_busy" Class="mt-3">Create GR</MudButton>
+                           OnClick="Create" Disabled="@(_busy || _warehouseId == Guid.Empty || !_lines.Any(l => !string.IsNullOrWhiteSpace(l.Sku)))" Class="mt-3">Create GR</MudButton>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" md="7">
@@ -74,15 +99,43 @@ else
 @code {
     private const int PageSize = 20;
 
-    private string _warehouseId = "WH1";
+    private Guid _warehouseId;
+    private IReadOnlyList<WarehouseDto> _warehouses = [];
+    private IReadOnlyList<ProductDto> _products = [];
     private string _poRef = string.Empty;
     private string _supplierId = string.Empty;
-    private readonly List<LineInput> _lines = [new LineInput { Sku = "SKU1", ExpectedQty = 10 }];
+    private readonly List<LineInput> _lines = [new LineInput { ExpectedQty = 10 }];
     private PagedResultDto<GoodsReceiptListRow> _result = new([], 1, PageSize, 0);
     private int _page = 1;
     private bool _busy;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookups();
+        await Load();
+    }
+
+    // What: muat warehouse + product aktif untuk lookup Create GR (warehouse default = pertama)
+    // Why: gantikan free-text Warehouse "WH1" (invalid GUID → DLQ senyap) & SKU bebas (typo → SKU tak ada)
+    // dgn dropdown ber-bind ke master data nyata — input id/sku mentah = sumber error, lookup mencegahnya.
+    private async Task LoadLookups()
+    {
+        if (!TokenStore.IsAuthenticated)
+            return;
+        var warehouses = await Api.MasterData.ListWarehousesAsync(1, 100, isActive: true);
+        if (warehouses.Success)
+        {
+            _warehouses = warehouses.Value!.Items;
+            if (_warehouseId == Guid.Empty && _warehouses.Count > 0)
+                _warehouseId = _warehouses[0].WarehouseId;
+        }
+        var products = await Api.MasterData.ListProductsAsync(1, 200, isActive: true, search: null);
+        if (products.Success)
+            _products = products.Value!.Items;
+    }
+
+    // UOM display (read-only) dari product master — kosong bila SKU belum dipilih
+    private string UomFor(string sku) => _products.FirstOrDefault(p => p.Sku == sku)?.Uom ?? "";
 
     private void AddLine() => _lines.Add(new LineInput());
 
@@ -117,13 +170,24 @@ else
 
     private async Task Create()
     {
-        _busy = true;
+        // guard: warehouse wajib (picker kosong/belum ada warehouse) — cegah submit GUID kosong → DLQ
+        if (_warehouseId == Guid.Empty)
+        {
+            Snackbar.Add("Pilih warehouse dulu.", Severity.Warning);
+            return;
+        }
         var lines = _lines
             .Where(line => !string.IsNullOrWhiteSpace(line.Sku))
             .Select(line => new CreateLine(line.Sku, line.ExpectedQty))
             .ToList();
+        if (lines.Count == 0)
+        {
+            Snackbar.Add("Minimal 1 expected line (pilih SKU).", Severity.Warning);
+            return;
+        }
+        _busy = true;
         var result = await Api.Inbound.CreateAsync(
-            _warehouseId,
+            _warehouseId.ToString(),
             string.IsNullOrWhiteSpace(_poRef) ? null : _poRef,
             string.IsNullOrWhiteSpace(_supplierId) ? null : _supplierId,
             lines);

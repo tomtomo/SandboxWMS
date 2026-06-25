@@ -145,6 +145,70 @@ public class StockTests
     }
 
     [Fact]
+    public void SplitForAllocation_splits_available_into_new_allocated_and_keeps_remainder()
+    {
+        var stock = Available(); // qty 10 @ RACK-A1
+        var waveId = Guid.NewGuid();
+
+        var result = stock.SplitForAllocation(StockId.New(), 3, waveId);
+
+        // porsi teralokasi = aggregate BARU (id sendiri), state Allocated terikat wave, qty = porsi diminta
+        Assert.True(result.IsSuccess);
+        var allocated = result.Value;
+        Assert.NotEqual(stock.Id, allocated.Id);
+        Assert.Equal(StockStatus.Allocated, allocated.Status);
+        Assert.Equal(waveId, allocated.AllocatedToWaveId);
+        Assert.Equal(3, allocated.Quantity);
+        Assert.Equal(stock.Sku, allocated.Sku);
+        Assert.Equal(stock.LocationId, allocated.LocationId);
+        Assert.Equal(stock.Batch, allocated.Batch);
+        Assert.Equal(stock.Expiry, allocated.Expiry);
+        Assert.Equal(stock.SourceGoodsReceiptId, allocated.SourceGoodsReceiptId);
+
+        // sisa lot tetap Available dengan qty berkurang — konservasi: 7 + 3 = 10 (tak ada unit bocor/ganda)
+        Assert.Equal(StockStatus.Available, stock.Status);
+        Assert.Equal(7, stock.Quantity);
+        Assert.Null(stock.AllocatedToWaveId);
+    }
+
+    [Fact]
+    public void SplitForAllocation_with_quantity_equal_to_stock_fails()
+    {
+        var stock = Available(); // qty 10 — porsi PENUH harus pakai Allocate, bukan split
+
+        var result = stock.SplitForAllocation(StockId.New(), 10, Guid.NewGuid());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(StockErrors.InvalidSplitQuantity, result.Error);
+        Assert.Equal(StockStatus.Available, stock.Status); // tak berubah
+        Assert.Equal(10, stock.Quantity);
+    }
+
+    [Fact]
+    public void SplitForAllocation_with_quantity_exceeding_stock_fails()
+    {
+        var stock = Available(); // qty 10
+
+        var result = stock.SplitForAllocation(StockId.New(), 11, Guid.NewGuid());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(StockErrors.InvalidSplitQuantity, result.Error);
+        Assert.Equal(10, stock.Quantity); // tak berubah
+    }
+
+    [Fact]
+    public void SplitForAllocation_from_onhand_is_illegal()
+    {
+        var stock = OnHand(); // belum putaway → bukan Available
+
+        var result = stock.SplitForAllocation(StockId.New(), 3, Guid.NewGuid());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(StockErrors.InvalidAllocation, result.Error);
+        Assert.Equal(10, stock.Quantity); // tak berubah
+    }
+
+    [Fact]
     public void Pick_moves_allocated_to_picked_at_staging()
     {
         var stock = Available();

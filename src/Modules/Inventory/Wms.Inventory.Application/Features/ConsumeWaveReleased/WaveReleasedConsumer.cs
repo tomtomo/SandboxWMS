@@ -8,16 +8,20 @@ using Wms.Outbound.Contracts;
 
 namespace Wms.Inventory.Application.Features.ConsumeWaveReleased;
 
-// What: Idempotent consumer WaveReleased → alokasi FEFO → emit StockAllocated (EIP; ADR-0005)
-// Why: sisi Inventory dari §C3. Per line wave, pilih Stock Available dengan expiry TERDEKAT
-// (FEFO — First-Expired-First-Out) lalu mark Allocated ke wave; setelah semua line, umumkan hasil
-// via StockAllocatedV1 ke Outbound (buat PickingTask). STRATEGI FEFO = config INTERNAL Inventory:
-// hanya HASIL alokasi yang menyeberang kontrak, bukan algoritmanya (FIFO/LIFO/fixed-bin bisa
-// menggantikan tanpa ubah kontrak). ACL: WaveReleasedV1 asing → model sendiri; StockAllocatedV1 di-emit.
-// How: cek Inbox (eventId, HandlerType). Muat semua Stock Available untuk sku yang diminta SEKALI
-// (tracked) → antrian per-sku urut FEFO → dequeue per line (cegah double-allocate stock sama dalam satu
-// wave; perubahan in-memory belum terlihat query DB). stock.Allocate(waveId) (transisi + guard di domain).
-// Enqueue StockAllocated ke Outbox + MarkProcessed + SaveChanges = SATU transaksi (anti dual-write).
+// What: Idempotent consumer WaveReleased → alokasi FEFO QUANTITY-AWARE → emit StockAllocated (EIP; ADR-0005)
+// Why: sisi Inventory dari §C3. Per line wave, penuhi qty yang DIMINTA dari Stock Available expiry-TERDEKAT
+// (FEFO — First-Expired-First-Out): exhaust lot terdekat dulu, span ke lot berikut bila kurang, SPLIT lot
+// terakhir bila melebihi sisa (porsi parsial → Stock baru Allocated, sisa tetap Available). Tanpa split →
+// over-allocation (seluruh lot terkunci walau order < qty lot) = konservasi bocor + qty PickingTask salah.
+// Setelah semua line, umumkan hasil via StockAllocatedV1 ke Outbound (buat PickingTask). STRATEGI FEFO =
+// config INTERNAL Inventory: hanya HASIL alokasi (stock+qty terpilih) yang menyeberang kontrak, bukan
+// algoritmanya (FIFO/LIFO/fixed-bin bisa menggantikan tanpa ubah kontrak). ACL: WaveReleasedV1 asing → model
+// sendiri; StockAllocatedV1 di-emit.
+// How: cek Inbox (eventId, HandlerType). Muat semua Stock Available untuk sku yang diminta SEKALI (tracked) →
+// antrian per-sku urut FEFO → per line akumulasi: Peek lot; bila qty lot ≤ sisa → Dequeue + Allocate penuh
+// (lanjut lot berikut); bila lot > sisa → SplitForAllocation (lot tetap di antrian, qty berkurang). In-memory
+// queue cegah double-allocate stock sama dalam satu wave (mutasi belum terlihat query DB). Enqueue
+// StockAllocated ke Outbox + AddAsync stock split + MarkProcessed + SaveChanges = SATU transaksi (anti dual-write).
 public sealed class WaveReleasedConsumer(
     IStockRepository stockRepository,
     IIntegrationEventOutbox outbox,
@@ -47,18 +51,45 @@ public sealed class WaveReleasedConsumer(
         var allocations = new List<StockAllocationV1>();
         foreach (var line in message.Lines)
         {
-            // Stock Available tak cukup = allocation failure → OUT-OF-SCOPE global (assume cukup): tak
-            // membangun partial/reject/notify policy; line tak terpenuhi sekadar tak menghasilkan alokasi.
-            if (!fefoQueues.TryGetValue(line.Sku, out var queue) || queue.Count == 0)
+            if (!fefoQueues.TryGetValue(line.Sku, out var queue))
                 continue;
 
-            var stock = queue.Dequeue();
-            var allocate = stock.Allocate(message.WaveId);
-            if (allocate.IsFailure)
-                return Result.Failure(allocate.Error);
+            // Akumulasi qty lintas batch FEFO sampai qty LINE terpenuhi (bukan sekadar ambil 1 lot utuh):
+            // lot expiry-terdekat di-exhaust DULU, lot terakhir yang MELEBIHI sisa di-SPLIT (porsi parsial).
+            // Tanpa ini → alokasi seluruh lot pertama (over-allocation: mengunci stok tak dipesan + qty
+            // PickingTask salah). Stock Available tak cukup = OUT-OF-SCOPE global (assume cukup): line tak
+            // penuh sekadar berhenti tanpa alokasi (tak ada partial/reject/notify policy).
+            var remaining = line.Qty;
+            while (remaining > 0 && queue.Count > 0)
+            {
+                var stock = queue.Peek();
+                if (stock.Quantity <= remaining)
+                {
+                    // lot habis dialokasi PENUH → keluar antrian, lanjut lot FEFO berikut untuk sisa
+                    queue.Dequeue();
+                    var allocate = stock.Allocate(message.WaveId);
+                    if (allocate.IsFailure)
+                        return Result.Failure(allocate.Error);
 
-            allocations.Add(new StockAllocationV1(
-                stock.Sku, stock.LocationId, stock.Batch, stock.Quantity, stock.Id.Value));
+                    allocations.Add(new StockAllocationV1(
+                        stock.Sku, stock.LocationId, stock.Batch, stock.Quantity, stock.Id.Value));
+                    remaining -= stock.Quantity;
+                }
+                else
+                {
+                    // lot > sisa → SPLIT: alokasi `remaining` ke Stock baru; lot ini tetap Available dgn
+                    // qty berkurang (tetap di antrian untuk line berikutnya sku yang sama). Konservasi terjaga.
+                    var split = stock.SplitForAllocation(StockId.New(), remaining, message.WaveId);
+                    if (split.IsFailure)
+                        return Result.Failure(split.Error);
+
+                    var allocated = split.Value;
+                    await stockRepository.AddAsync(allocated, cancellationToken);
+                    allocations.Add(new StockAllocationV1(
+                        allocated.Sku, allocated.LocationId, allocated.Batch, allocated.Quantity, allocated.Id.Value));
+                    remaining = 0;
+                }
+            }
         }
 
         outbox.Enqueue(ToEnvelope(message.WaveId, allocations));
